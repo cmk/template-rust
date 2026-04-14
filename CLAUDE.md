@@ -1,0 +1,167 @@
+# CLAUDE.md
+
+## What this repo is
+
+<!-- Replace this section with your project description. -->
+
+A Rust workspace with multiple crates.
+
+## Parallel work
+
+At the start of each conversation, ask the user:
+"Are any other Claude instances working in this repo right now?"
+
+If yes (or if the user says "work in a worktree"), create a git worktree
+before making any changes:
+
+```zsh
+git worktree add ../project-<task> -b <branch>
+```
+
+Never run two Claude instances in the same worktree — cargo target-dir
+locks and fd contention will break one or both sessions.
+
+## Architecture
+
+<!-- Replace this section with your architecture overview. -->
+
+### Workspace layout
+
+```
+Cargo.toml              — workspace root
+crates/
+  core/                 — shared types, test utilities, proptest strategies
+```
+
+Feature flags on any binary crate's `Cargo.toml` control which library
+crates are compiled in:
+
+```toml
+[features]
+default = ["foo"]
+foo = ["dep:crate-foo"]
+```
+
+## Repository conventions
+
+- **Each commit must leave the repo in a state where `cargo test` passes.**
+  Do not commit a library module without the tests that cover it in the
+  same commit. Never commit a red test suite.
+- **No merge commits.** Always rebase onto main — never `git merge`. The
+  history must be linear.
+- **No unsafe code**: `#![forbid(unsafe_code)]` when possible.
+- **Test fixtures are gitignored**, and a fresh checkout must pass
+  `cargo test --workspace` with zero setup. Tests that depend on a
+  fixture file must use the `fixture_or_skip!` macro from the core
+  crate and `return` cleanly when the fixture is absent — **do not**
+  `#[ignore]` them and do not panic.
+- **Property-based testing is mandatory** for any module that parses,
+  encodes, or transforms data. Use `proptest` (workspace dev-dep).
+  - Define strategies as functions returning `impl Strategy`, not
+    `Arbitrary` derive. Use `prop_oneof!` with frequency weights to
+    bias toward boundary values and edge cases.
+  - Strategies shared across crates live in `crates/core/src/arb.rs`.
+    Strategies local to one module stay colocated in that module's
+    `#[cfg(test)]` block.
+  - Properties that must hold for a sprint to ship are defined **in
+    the plan's Verification table** before any code is written.
+  - If a property test blocks progress during implementation, you may
+    `#[ignore]` it temporarily **but you must document it** in the
+    plan's Review section with the reason and a plan to re-enable.
+
+### Session notes
+
+Session notes live in `doc/notes/note-YYYY-MM-DD-nn.md`. The final field
+`nn` is a counter that resets to 01 each day.
+
+When the user says "print to notes", append the requested responses to
+the current day's notes file in markdown format. Create the file if it
+doesn't exist.
+
+### Commit style
+
+Conventional commits, present-tense imperative subject:
+
+```
+feat: Add parser for widget format
+fix: Handle timeout on reconnect
+test: Add round-trip property tests for codec
+doc: Append Sprint 2 completion report
+task: Add serde to core dependencies
+```
+
+Keep subjects under 72 characters. Use the body for non-obvious decisions.
+
+## TDD workflow
+
+Every sprint follows this order:
+
+1. Write the plan to `doc/plans/plan-YYYY-MM-DD-nn.md` before touching source.
+   The plan's **Verification** table must list the property tests that
+   must pass for the sprint to ship (e.g., "message round-trips through
+   encode/decode", "parser never panics on arbitrary input").
+2. Create a worktree and branch for the sprint:
+   `git worktree add ../project-<sprint> -b sprint/<name>`
+3. Write proptest properties and test skeletons that compile but
+   trivially fail. Properties come first — they define the contract.
+4. Implement the module until all tests are green.
+5. Commit on the branch, when green.
+6. Run `/sprint-review` against the branch before merging.
+7. Rebase onto main: `git rebase main` then fast-forward main.
+8. Clean up: `git worktree remove ../project-<sprint>`.
+9. Append deferred/review sections to the plan document. If any
+   property tests were `#[ignore]`d during implementation, document
+   the reason and the re-enablement plan here.
+
+### Pre-commit hook
+
+A Claude Code hook in `.claude/settings.json` runs `cargo test` and
+`cargo clippy` before every `git commit` tool call. If either fails,
+the commit is blocked. This is the automated quality gate; `/sprint-review`
+is the manual one.
+
+## Sprint plan format
+
+```markdown
+# Plan NN — Title
+
+## Goal
+One sentence.
+
+## Dependency Graph
+ASCII art showing task dependencies (T1 → T2, T3 → T4, etc.)
+
+## Tasks
+Each task is T1, T2, etc. Each task section includes:
+- Problem or motivation
+- Solution / implementation approach
+- Types or API surface
+
+## Verification
+
+### Properties (must pass)
+Table of proptest property names, the module they live in, and the
+invariant they assert. These are the contract — if a property can't
+be satisfied, the sprint isn't done.
+
+| Property | Module | Invariant |
+|----------|--------|-----------|
+| `msg_round_trips` | `crate_foo::codec` | encode then decode recovers original |
+
+### Spot checks
+Table of unit test names + specific assertions.
+
+### Build gates
+- cargo build — no errors
+- cargo test — all pass (no `#[ignore]` without Review documentation)
+- cargo clippy --all-targets — no errors
+- End-to-end scenario description
+
+## Deferred
+What was intentionally left out and why.
+
+## Review
+- Any `#[ignore]`d properties: which ones, why, re-enablement plan
+- Design deviations from the plan
+- Recommendations
+```

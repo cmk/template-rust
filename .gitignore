@@ -1,0 +1,16 @@
+# Build
+debug/
+target/
+Cargo.lock
+
+# Editor
+.vscode/
+.idea
+**/*.swp
+**/*.rs.bk
+
+# OS
+**/*.DS_Store
+
+# MCP server config — contains machine-local binary paths
+.mcp.json
