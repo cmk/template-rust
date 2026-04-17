@@ -68,11 +68,17 @@ def resolve_repo(pr: int, repo_override: str | None) -> str:
         detail = (exc.stderr or "").strip()
         if "Not Found" in detail or "404" in detail:
             cwd = os.getcwd()
-            print(
-                f"error: PR #{pr} not found in {repo} (repo detected from cwd: {cwd}).\n"
-                f"  If the PR lives in a different repo, pass --repo owner/name.",
-                file=sys.stderr,
-            )
+            lines = [
+                f"error: couldn't verify PR #{pr} in {repo} "
+                f"(repo detected from cwd: {cwd}).",
+                "  The PR may be in a different repo — pass "
+                "--repo owner/name to override.",
+                "  A 404 here can also mean your gh token lacks access "
+                "to this repo/PR.",
+            ]
+            if detail:
+                lines.append(f"  gh api detail: {detail}")
+            print("\n".join(lines), file=sys.stderr)
             raise SystemExit(1)
         msg = f": {detail}" if detail else ""
         print(
