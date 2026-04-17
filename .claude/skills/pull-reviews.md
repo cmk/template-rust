@@ -58,9 +58,10 @@ step.
 
 ## Step 4: Report
 
-Print a one-paragraph summary: how many new comments appended, from
-which reviewers, and the path to the review file. Pipe through the
-script's stdout if that's easier.
+Print a one-paragraph summary: how many new items were appended and
+the path to the review file. The script's own stdout line —
+`PR #N: appended K items -> <path>` — already gives you both, so you
+can pipe it through verbatim if that's easier.
 
 ---
 

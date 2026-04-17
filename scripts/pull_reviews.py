@@ -142,10 +142,13 @@ def collect_items(repo: str, n: int) -> list[dict]:
     for r in gh_api(f"repos/{repo}/pulls/{n}/reviews"):
         if not r.get("body"):
             continue
+        submitted_at = r.get("submitted_at")
+        if not submitted_at:
+            continue
         items.append(
             {
                 "kind": "review",
-                "ts": r["submitted_at"],
+                "ts": submitted_at,
                 "id": r["id"],
                 "user": r["user"]["login"],
                 "state": r["state"],
