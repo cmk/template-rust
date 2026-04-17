@@ -34,15 +34,16 @@ Abort if no PR is found.
 ## Step 2: Identify unreplied threads
 
 Read `doc/reviews/review-NNNN.md`. A thread is a top-level inline
-comment (a `### {user} on [\`{path}:{line}\`](...)` header) plus any
-`#### ↳ {user}` replies beneath it, terminating at the next `### ` or
-end of file.
+comment header — either `### {user} on [\`{path}\`](...)` (outdated
+or file-level comments where the GitHub API omits `line`) or
+`### {user} on [\`{path}:{line}\`](...)` — plus any `#### ↳ {user}`
+replies beneath it, terminating at the next `### ` or end of file.
 
 A thread is **unreplied** if no `↳` reply in it is authored by a
 non-bot account (i.e., not `Copilot`, not `copilot-pull-request-reviewer[bot]`,
 not `claude[bot]`). Top-level review-body sections (`### {user} — {state}`,
-no `on [\`path:line\`]`) can usually be skipped — they don't take
-threaded replies via the review-comment API.
+no `on [\`path\`]` / `on [\`path:line\`]`) can usually be skipped —
+they don't take threaded replies via the review-comment API.
 
 If the file is stale (you know there's been GH activity since the last
 `/pull-reviews`), run `scripts/pull_reviews.py <N>` first so you're
