@@ -31,12 +31,13 @@ If no PR is found, ask the user for the number.
 scripts/pull_reviews.py <N>
 ```
 
-The script handles everything: fetches reviews and inline comments via
-`gh api --paginate` (so PRs with >30 items aren't truncated), merges
-them chronologically, de-dupes via set membership on `<!-- gh-id: -->`
-markers, hyperlinks headers to GitHub permalinks, absolute-ifies
-relative links in bodies, and creates `review-NNNN.md` with a
-`# PR #N — <title>` header if it doesn't exist.
+The script handles everything: fetches reviews and inline comments by
+iterating `?per_page=100&page=N` explicitly against the GitHub API
+(chosen over `gh api --paginate --slurp` because `--slurp` requires
+gh >= 2.47), merges them chronologically, de-dupes via set membership
+on `<!-- gh-id: -->` markers, hyperlinks headers to GitHub permalinks,
+absolute-ifies relative links in bodies, and creates `review-NNNN.md`
+with a `# PR #N — <title>` header if it doesn't exist.
 
 The script is idempotent: any item whose `gh-id` is already present in
 the file is skipped. Note: it is **not** safe to assume a single
