@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 
@@ -35,6 +36,50 @@ def gh_repo() -> str:
         msg = f": {detail}" if detail else ""
         print(f"error: failed to determine repository via `gh repo view`{msg}", file=sys.stderr)
         raise SystemExit(1)
+
+
+def resolve_repo(pr: int, repo_override: str | None) -> str:
+    """Pick the target repo, verifying the PR exists in it.
+
+    If `--repo` was passed, trust it (explicit beats inferred).
+    Otherwise auto-detect via `gh repo view` from cwd, then pre-flight
+    `gh api repos/{repo}/pulls/{pr}`. On 404, error with both the
+    detected repo and cwd so a user whose shell drifted into the wrong
+    directory sees the mismatch immediately instead of getting an
+    opaque 404 from the reply endpoint later.
+    """
+    if repo_override:
+        return repo_override
+    repo = gh_repo()
+    try:
+        subprocess.check_output(
+            ["gh", "api", f"repos/{repo}/pulls/{pr}"],
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        print(
+            "error: `gh` CLI not found; install GitHub CLI and ensure it is on PATH",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or "").strip()
+        if "Not Found" in detail or "404" in detail:
+            cwd = os.getcwd()
+            print(
+                f"error: PR #{pr} not found in {repo} (repo detected from cwd: {cwd}).\n"
+                f"  If the PR lives in a different repo, pass --repo owner/name.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        msg = f": {detail}" if detail else ""
+        print(
+            f"error: couldn't verify PR #{pr} in {repo} via `gh api`{msg}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return repo
 
 
 def main() -> int:
@@ -58,7 +103,7 @@ def main() -> int:
         print("error: empty body", file=sys.stderr)
         return 1
 
-    repo = args.repo or gh_repo()
+    repo = resolve_repo(args.pr, args.repo)
     path = f"repos/{repo}/pulls/{args.pr}/comments/{args.in_reply_to_id}/replies"
 
     try:
