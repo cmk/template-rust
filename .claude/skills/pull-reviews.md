@@ -9,7 +9,8 @@ description: >
 # Pull Reviews — Fetch GitHub Comments to Local File
 
 Fetch review comments from a GitHub PR and append new ones chronologically
-to the local review file `doc/reviews/review-NNNN.md`.
+to `doc/reviews/review-NNNN.md`. The heavy lifting lives in
+`scripts/pull_reviews.py`; this skill is a thin wrapper around it.
 
 ---
 
@@ -24,90 +25,87 @@ gh pr view --json number --jq .number
 
 If no PR is found, ask the user for the number.
 
-## Step 2: Find the high-water mark
-
-Read `doc/reviews/review-NNNN.md` if it exists. Scan for all
-`<!-- gh-id: NNNNN -->` markers and take the maximum. This is the
-high-water mark — only items with `id` greater than this value are new.
-
-If the file doesn't exist or has no markers, all items are new.
-
-## Step 3: Fetch comments
-
-Fetch all review comments for the PR, sorted by creation time:
+## Step 2: Run the script
 
 ```
-gh api repos/{owner}/{repo}/pulls/{N}/comments \
-  --jq 'sort_by(.created_at) | .[] | {id, user: .user.login, path, line, body, created_at, in_reply_to_id}'
+scripts/pull_reviews.py <N>
 ```
 
-Also fetch top-level review bodies (Copilot summaries, human approvals):
+The script handles everything: fetches reviews and inline comments via
+`gh api --paginate` (so PRs with >30 items aren't truncated), merges
+them chronologically, de-dupes via set membership on `<!-- gh-id: -->`
+markers, hyperlinks headers to GitHub permalinks, absolute-ifies
+relative links in bodies, and creates `review-NNNN.md` with a
+`# PR #N — <title>` header if it doesn't exist.
 
-```
-gh api repos/{owner}/{repo}/pulls/{N}/reviews \
-  --jq 'sort_by(.submitted_at) | .[] | select(.body != "") | {id, user: .user.login, state, body, submitted_at}'
-```
+The script is idempotent: any item whose `gh-id` is already present in
+the file is skipped. Note: it is **not** safe to assume a single
+"high-water mark" — GitHub draws review IDs and inline-comment IDs from
+different sequences, so max-id across both would silently drop later
+items from the lower-numbered sequence. Set membership avoids this.
 
-Filter both lists to only entries with `id` greater than the high-water
-mark.
+## Step 3: Commit the updated file
 
-## Step 4: Format and append
+If new items were appended, **commit `review-NNNN.md` to the PR branch**
+— either as a standalone `doc: update review-NNNN.md` commit or folded
+into the current round's fix commit. The review file must ride along
+with the PR that generated it; landing it post-merge orphans the audit
+trail.
 
-Append new comments **chronologically** (by `created_at` / `submitted_at`)
-to the review file. Each comment is a self-contained block:
+If there were no new items (script reported `no new items`), skip this
+step.
 
-For a top-level review body:
-
-```markdown
-<!-- gh-id: {id} -->
-### {user} — {state} ({YYYY-MM-DD HH:MM UTC})
-
-{body}
-```
-
-For an inline comment (new thread):
-
-```markdown
-<!-- gh-id: {id} -->
-### {user} on `{path}:{line}` ({YYYY-MM-DD HH:MM UTC})
-
-{body}
-```
-
-For a reply (has `in_reply_to_id`):
-
-```markdown
-<!-- gh-id: {id} -->
-#### ↳ {user} ({YYYY-MM-DD HH:MM UTC})
-
-{body}
-```
-
-If the file is new, add a top-level header first:
-
-```markdown
-# PR #{N} — {PR title}
-```
-
-Fetch the PR title via:
-
-```
-gh pr view {N} --json title --jq .title
-```
-
-## Step 5: Report
+## Step 4: Report
 
 Print a one-paragraph summary: how many new comments appended, from
-which reviewers, and the path to the review file.
+which reviewers, and the path to the review file. Pipe through the
+script's stdout if that's easier.
+
+---
+
+## Format contract (for reference / debugging)
+
+The script writes three block shapes. If you're editing the file by hand
+or extending the script, preserve these:
+
+Top-level review body:
+
+```markdown
+<!-- gh-id: {id} -->
+### {user} — {state} ([{YYYY-MM-DD HH:MM UTC}]({html_url}))
+
+{body}
+```
+
+Inline comment (new thread):
+
+```markdown
+<!-- gh-id: {id} -->
+### {user} on [`{path}:{line}`]({html_url}) ({YYYY-MM-DD HH:MM UTC})
+
+{body}
+```
+
+Reply (has `in_reply_to_id`):
+
+```markdown
+<!-- gh-id: {id} -->
+#### ↳ {user} ([{YYYY-MM-DD HH:MM UTC}]({html_url}))
+
+{body}
+```
 
 ## Notes
 
-- **Do not commit the review file.** The user decides when to commit.
-- **Idempotent.** The high-water mark (`gh-id` HTML comments) ensures
-  running twice never duplicates. The agent's only job is: find the
-  largest `gh-id` already in the file, append anything newer.
-- **Chronological, not grouped.** Comments appear in the order they were
-  posted on GitHub. This preserves the conversational flow — a reply
-  appears right after the comment it responds to (since GitHub assigns
-  monotonically increasing ids within a PR). Use `in_reply_to_id` only
-  to decide the `↳ reply` formatting, not to reorder.
+- **The script does not auto-commit.** The agent must stage and commit
+  `review-NNNN.md` on the PR branch when new items were appended (see
+  Step 3). The file must ride along with the PR — don't leave it
+  untracked.
+- **Idempotent** via set membership on `<!-- gh-id: -->` markers (not
+  max-id, which would be unsound across review/comment sequences).
+  Safe to re-run.
+- **Chronological, not grouped.** Items are appended in posted order
+  (by `created_at` / `submitted_at`). Replies are only indicated by
+  `↳` formatting based on `in_reply_to_id`; they are not guaranteed
+  to be adjacent to their parent — other comments posted in between
+  will interleave.
