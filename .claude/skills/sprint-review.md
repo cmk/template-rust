@@ -1,81 +1,75 @@
 ---
 name: sprint-review
 description: >
-  Review a completed sprint by comparing the plan document against the actual
-  implementation diff. Use this skill whenever the user asks to review a sprint,
-  review the last sprint, review recent commits against a plan, or says
-  "/sprint-review". Also use it after completing a sprint on a branch before
-  rebasing onto main — it's the manual quality gate in the TDD workflow.
+  Local pre-push code review (Tier 1). Spawns an independent reviewer agent
+  to examine the branch diff against main. Use when the user says
+  "/sprint-review", "review the branch", "review before push", or after
+  completing work on a feature branch before pushing to GitHub.
 ---
 
-# Sprint Review
+# Sprint Review — Tier 1 (Local)
 
-You are orchestrating a code review that compares a sprint plan against its
-implementation. The review is performed by an **independent agent** — not you.
-Your job is to gather the inputs, launch the reviewer, and place the output.
+You are orchestrating a **local, pre-push** code review. This is Tier 1 of
+a two-tier system:
 
-## Step 1: Identify the plan
+- **Tier 1 (this skill):** Independent agent reviews `main...HEAD` locally.
+  Gate before pushing.
+- **Tier 2 (GitHub):** After push, CI runs build/test/clippy/fmt. Claude
+  Code Action and/or Copilot review the PR on GitHub.
 
-If the user specifies a plan (e.g., "review plan 04" or a path), use that.
+Your job: gather inputs, launch the reviewer, place the output, then help
+the user push if the review passes.
 
-Otherwise, find the most recent plan:
+---
+
+## Step 1: Identify the plan (optional)
+
+Check for a plan doc associated with this branch:
 
 ```
-ls -t doc/plans/plan-*.md | head -1
+ls -t doc/plans/plan-*.md | head -3
 ```
 
-Read the plan. You'll pass its full text to the reviewer.
+If a plan exists and is clearly related to the branch work (check dates,
+topic), read it. You'll pass its text to the reviewer.
 
-## Step 2: Identify the diff
+If no plan exists or none is relevant, that's fine — the review proceeds
+in **code-only mode** (no plan-conformance section).
 
-**Branch mode** (preferred): if the current branch is not `main`, diff against
-main:
+## Step 2: Collect the diff
+
+The review always targets the current branch against main:
 
 ```
 git diff main...HEAD
 git log main..HEAD --oneline
 ```
 
-**Main mode**: if the user says "review the last N commits" or you're on main,
-use the plan's date and commit messages to identify the relevant commits. Ask
-the user to confirm the range if ambiguous, then:
+If the branch has not diverged from main, abort with a message — there's
+nothing to review.
 
-```
-git diff <base>..<tip>
-git log <base>..<tip> --oneline
-```
-
-Collect the full diff and the commit log. You'll pass both to the reviewer.
-
-## Step 3: Gather context files
+## Step 3: Gather context
 
 Read these files and include them in the reviewer prompt:
 
-- `CLAUDE.md` — repo conventions, workspace layout, TDD workflow, commit style
-- The plan's **Verification** section (test matrix) — extract it specifically
-  so the reviewer can check coverage
-- `doc/refs/review-calibration.md` — few-shot examples of high-quality review
-  comments that calibrate the reviewer's style and specificity
+- `CLAUDE.md` — repo conventions, workspace layout, TDD workflow, commit
+  style, feature-gate conventions
+- `doc/refs/review-calibration.md` — if it exists, include as few-shot
+  examples. If absent, skip (the reviewer prompt has built-in guidance).
 
 ## Step 4: Launch the reviewer
 
 Spawn a **new agent** with `subagent_type: "feature-dev:code-reviewer"` and
-`model: "sonnet"`. This agent has no context from the current conversation —
-that's the point. It reviews the code independently. Sonnet is sufficient
-for review work (reading comprehension + pattern matching) and keeps cost
-down.
+`model: "sonnet"`.
 
-The prompt you send must be self-contained. Include:
+The prompt must be self-contained. Include:
 
-1. The full plan text
-2. The full diff
-3. The commit log
-4. The repo conventions from CLAUDE.md (workspace layout, commit style, test
-   conventions, feature-gate conventions)
-5. The calibration examples from `doc/refs/review-calibration.md` (read the
-   file and include its full contents under `## Examples of high-quality
-   review comments`)
-6. The review checklist (below)
+1. The full diff
+2. The commit log
+3. The repo conventions from CLAUDE.md
+4. The plan text (if found), clearly labeled as optional context
+5. Calibration examples from `doc/refs/review-calibration.md` (if found)
+6. The review instructions (below)
 
 ### Reviewer voice and calibration
 
@@ -87,8 +81,8 @@ robot. Good review comments share these qualities:
   optional feature gate (T1), but `Cargo.toml` lists tokio as unconditional."
 
 - **Name the consequence.** Don't just say "this differs from the plan." Say
-  what breaks: "This means crate-foo links tokio despite only using sync code,
-  adding ~3s to clean builds."
+  what breaks: "This means `driver-motu` links tokio/russh/mdns despite only
+  using HTTP+OSC, adding ~3s to clean builds."
 
 - **Distinguish severity.** Some findings block the merge, others are
   improvement opportunities. Be explicit: "Must fix before merge" vs
@@ -100,145 +94,162 @@ robot. Good review comments share these qualities:
 ### Reviewer prompt template
 
 ~~~
-You are reviewing a completed sprint. Your job is to compare the plan against
-what was actually implemented and flag gaps, drift, and quality issues.
+You are reviewing code on a local feature branch before it is pushed to
+GitHub. This is a pre-push quality gate — there is no PR yet. You are
+reviewing the diff between main and the branch HEAD.
 
-You are an independent reviewer — you did not write this code and you have
-no context beyond what's provided here. Review what you see, not what you
+You are an independent reviewer. You did not write this code and have no
+context beyond what is provided here. Review what you see, not what you
 assume.
 
-## Plan
-
-{full plan text}
-
-## Diff (main...branch or commit range)
+## Diff (main...HEAD)
 
 {diff}
 
-## Commit log
+## Commit log (main..HEAD)
 
 {commit log}
 
 ## Repo conventions
 
-{CLAUDE.md excerpt: workspace layout, commit style, test conventions,
-feature-gate conventions}
+{CLAUDE.md contents}
 
+{IF plan exists:}
+## Sprint plan (optional context)
+
+{plan text}
+
+The plan is context, not a contract. Focus on whether the code is correct,
+tested, and follows conventions. If the plan specifies verification criteria
+(property tests, spot checks), confirm they exist in the diff.
+{END IF}
+
+{IF calibration examples exist:}
 ## Examples of high-quality review comments
 
-{contents of doc/refs/review-calibration.md}
+{doc/refs/review-calibration.md contents}
 
 Match this style: cite the contract (doc, plan, or naming), show how the
 code violates it, and name the consequence. When something is fine, one
 sentence is enough. Don't invent concerns to fill space.
+{END IF}
 
-## Review checklist
+## Review instructions
 
 For each section, state what you found concretely. When something is wrong,
-cite the specific file, line, plan section, and consequence. When something
-is fine, one sentence is enough — don't pad.
+cite the specific file, line, and consequence. When something is fine, one
+sentence is enough — don't pad.
 
-### Plan Conformance
+### Commit Hygiene
 
-Walk every task (T1, T2, ...) and every row in the Verification table:
-
-- Was each task implemented? If partially, what's missing?
-- For each planned test, does a corresponding test exist in the diff?
-- Were any features, config options, Cargo.toml entries, or feature gates
-  described in the plan but absent from the implementation? This is the
-  highest-value check — plans often specify build configuration (optional
-  deps, feature flags, conditional compilation) that gets lost in
-  implementation.
-- Were any API signatures or type definitions changed from the plan without
-  a documented reason in the commit message or plan's Review section?
-- Is there code in the diff that wasn't in the plan? If so, is it a
-  justified emergent requirement or undocumented scope creep?
+- Does each commit leave the repo in a buildable, testable state?
+- Are commit messages conventional (feat/fix/test/refactor/doc/chore prefix)?
+- Are commits reasonably atomic, or are unrelated changes mixed?
 
 ### Code Quality
 
-- Does the code follow repo conventions (thiserror in libs, fixture_or_skip
-  for missing test data, no unsafe, lints via Cargo.toml)?
-- Are error messages specific enough to diagnose failures from a log line
-  alone?
-- Is there unintended coupling between crates that should be independent?
-- Any redundant code, dead code, or clippy-level issues?
+- Does the code follow repo conventions (thiserror in libs, no unsafe,
+  lints via Cargo.toml)?
+- Are error messages specific enough to diagnose from a log line?
+  (e.g., "qu: tcp connect: {e}" is good; "operation failed" is not)
+- Is there unintended coupling between driver crates that should be
+  independent? (e.g., driver-qu importing types from driver-mpc)
+- Any dead code, redundant logic, or clippy-level issues?
+- Were any features, config options, or feature gates described in the
+  plan but absent from the implementation? This is the highest-value
+  check — plans often specify build configuration that gets lost.
 
 ### Test Coverage
 
-**Property tests are the highest-priority check in this section.**
+**Property tests are the highest-priority check.**
 
-- Walk the plan's **Properties (must pass)** table row by row. For each
-  planned property:
-  - Does a corresponding `proptest!` block exist in the diff?
-  - Does the property assert the invariant described in the plan, or a
-    weaker/different one?
-  - Is the property `#[ignore]`d? If so, is the reason documented in
-    the plan's Review section with a re-enablement plan? An ignored
-    property without documentation is a **must-fix**.
 - For any module that parses, encodes, or transforms data: are there
-  property tests? If the plan didn't list them, flag this as a gap —
-  the convention requires proptest for all parse/encode/transform code.
-- Compare the plan's **Spot checks** table against actual unit test
-  functions. List any that are missing or renamed without explanation.
-- Do fixture-gated tests use `fixture_or_skip!` from the core crate
-  (return early when fixture is absent, don't panic, don't `#[ignore]`)?
+  property tests? If not, flag this as a gap.
+- Do fixture-gated tests use `fixture_or_skip!` from
+  `studio_core::testing` (return early when fixture is absent, don't
+  panic, don't `#[ignore]`)?
 - What edge cases do the tests miss? Be specific — "what happens if the
-  connection drops mid-message" is useful; "more tests would be good" is
-  not.
+  TCP connection drops mid-NRPN" is useful; "more tests would be good"
+  is not.
+
+{IF plan exists:}
+### Plan Conformance
+
+- Walk each task (T1, T2, ...) and each row in the Verification table:
+  was it implemented?
+- For each planned test, does a corresponding test exist in the diff?
+- Is there code in the diff that wasn't in the plan? Justified emergent
+  requirement or undocumented scope creep?
+{END IF}
 
 ### Risks
 
-- TODOs, stubs, or placeholder implementations left in the code?
+- TODOs, stubs, or placeholder implementations?
 - Could any change break existing functionality in other crates?
-- Security: path traversal in file operations? Command injection?
-  Unsanitized input passed to shell commands?
-- Dependency concerns: are new deps justified, pinned, and actively
-  maintained?
+- Security: path traversal in file operations? Command injection in SSH
+  exec calls? Unsanitized input passed to shell commands?
+- New dependencies justified and maintained?
 
 ### Recommendations
 
 Separate into two lists:
 
-**Must fix before merge:**
-- Issues that violate the plan's stated design, break conventions, or
-  introduce bugs.
+**Must fix before push:**
+- Issues that violate conventions, break tests, or introduce bugs.
 
-**Follow-up (future sprint):**
-- Improvements, refactoring opportunities, or gaps that are acceptable
-  for now but should be tracked.
+**Follow-up (future work):**
+- Improvements that are acceptable now but should be tracked.
 
 ## Output format
 
-Structure your review as markdown with the five H3 sections above. Be
-direct and specific. Cite file paths and line numbers. If the plan
-specified something and the code doesn't match, quote both side by side.
-
-Keep the total review under 400 lines. Prioritize findings by impact —
-a missing feature gate that affects build times for every consumer is
-more important than a suboptimal variable name.
+Structure your review as markdown with the H3 sections above. Be direct
+and specific. Cite file paths and line numbers. Keep the total review under
+400 lines. Prioritize by impact.
 ~~~
 
-## Step 5: Place the output and stop
+## Step 5: Place the output
+
+Review files are organized by PR number: `doc/reviews/review-NNNN.md` where
+`NNNN` is the zero-padded PR number (e.g., `review-0017.md`). Each file
+accumulates all review rounds — local and GitHub — as dated sections.
 
 When the reviewer agent returns:
 
-1. **Append the full review to the plan doc** under `## Review` as a new
-   subsection:
+1. **Determine the review file path.** If a PR already exists for this
+   branch, use its number. If not (pre-push), ask the user for the
+   expected PR number, or use `0000` as a placeholder and rename after
+   the PR is created.
+
+2. **Append** (do not overwrite) a dated section to
+   `doc/reviews/review-NNNN.md` (create `doc/reviews/` and the file if
+   they don't exist):
 
    ```markdown
-   ### Code Review (YYYY-MM-DD)
+   ## Local review (YYYY-MM-DD)
+
+   **Branch:** <branch>
+   **Commits:** <count> (main..<branch>)
+   **Reviewer:** Claude (sonnet, independent)
+
+   ---
 
    {reviewer output}
    ```
 
-   This goes after any existing Review subsections. The coder's retrospective
-   and the independent review live side by side — don't overwrite anything.
+   If the file is new, add a top-level header first:
 
-   If the plan doc doesn't have a `## Review` section, create one.
+   ```markdown
+   # PR #<N> — <PR title or branch name>
+   ```
 
-2. **Print a brief summary to the conversation**: how many must-fix items,
-   how many follow-ups, and the path to the plan doc. One paragraph max.
+3. **Print a summary** to the conversation: how many must-fix items, how
+   many follow-ups, and the path to the review file. One paragraph max.
 
-3. **Stop.** Do not attempt to fix any issues the reviewer found. Do not
-   offer to fix them. The user will read the review and decide what to do
-   next. The review is an artifact, not an action.
+4. **If zero must-fix items:**
+   Tell the user the branch is clear to push. Offer to push and create a
+   PR (but don't do it without confirmation). Remind them that Tier 2
+   (CI + GitHub review) will run automatically on the PR.
+
+5. **If must-fix items exist:**
+   Stop. Do not push. Do not offer to fix the issues. The user reads the
+   review and decides what to do next.
