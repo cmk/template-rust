@@ -77,10 +77,13 @@ Top-level review body:
 {body}
 ```
 
-Inline comment (new thread):
+Inline comment (new thread). The `:line` suffix is omitted when the
+GitHub API returns `line: null` (outdated diff comments or file-level
+comments), so both `{path}` and `{path}:{line}` variants are valid:
 
 ```markdown
 <!-- gh-id: {id} -->
+### {user} on [`{path}`]({html_url}) ({YYYY-MM-DD HH:MM UTC})
 ### {user} on [`{path}:{line}`]({html_url}) ({YYYY-MM-DD HH:MM UTC})
 
 {body}
