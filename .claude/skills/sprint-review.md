@@ -14,8 +14,10 @@ a two-tier system:
 
 - **Tier 1 (this skill):** Independent agent reviews `origin/main...HEAD` locally.
   Gate before pushing.
-- **Tier 2 (GitHub):** After push, CI runs build/test/clippy/fmt. Claude
-  Code Action and/or Copilot review the PR on GitHub.
+- **Tier 2 (GitHub):** After push, CI runs `cargo test --workspace` and
+  `cargo clippy --all-targets -- -D warnings` (see
+  `.github/workflows/ci.yml`). Claude Code Action and/or Copilot review
+  the PR on GitHub.
 
 Your job: gather inputs, launch the reviewer, place the output, then help
 the user push if the review passes.

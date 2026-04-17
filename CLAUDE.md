@@ -121,9 +121,10 @@ clean, push and create a PR.
 
 ### Tier 2 — GitHub review (post-push)
 
-Once pushed, CI runs build, clippy, test, and fmt checks. Claude Code
-Action and/or GitHub Copilot perform a second-round review on the PR
-automatically.
+Once pushed, CI runs `cargo test --workspace` and
+`cargo clippy --all-targets -- -D warnings` (see
+`.github/workflows/ci.yml`). Claude Code Action and/or GitHub Copilot
+perform a second-round review on the PR automatically.
 
 After GitHub review activity, run `/pull-reviews <N>` to fetch the PR's
 review bodies and inline comments and **append them chronologically to the
