@@ -49,6 +49,15 @@ foo = ["dep:crate-foo"]
   same commit. Never commit a red test suite.
 - **No merge commits.** Always rebase onto main — never `git merge`. The
   history must be linear.
+- **CI-repair commits must be fixups.** If a commit on this branch broke
+  CI and the follow-up exists only to repair it, commit with
+  `git commit --fixup=<broken-sha>` instead of a standalone `fix:`.
+  Before pushing, run `scripts/autosquash.sh` (a thin wrapper over
+  `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash origin/main`) so the
+  fixups collapse into their targets. This keeps main's linear history
+  free of commits that temporarily broke the build. Review-round commits
+  (addressing reviewer feedback from an earlier push) remain standalone
+  so the audit trail survives.
 - **No unsafe code**: `#![forbid(unsafe_code)]` when possible.
 - **Test fixtures are gitignored**, and a fresh checkout must pass
   `cargo test --workspace` with zero setup. Tests that depend on a
@@ -91,6 +100,58 @@ task: Add serde to core dependencies
 ```
 
 Keep subjects under 72 characters. Use the body for non-obvious decisions.
+
+## Two-tier review workflow
+
+### Tier 1 — Local review (pre-push)
+
+The coding agent makes atomic commits as it works. Each commit must pass
+`cargo test` and `cargo clippy` (enforced by the pre-commit hook in
+`.claude/settings.json`). Commits can be as small as desired.
+
+Before pushing to GitHub, run `/sprint-review`. This spawns an independent
+reviewer agent that examines `git diff origin/main...HEAD` and the commit
+log. The reviewer flags must-fix issues and follow-ups. The review is
+appended to `doc/reviews/review-NNNN.md`, where `NNNN` is the zero-padded
+PR number for the branch (use `0000` as a placeholder pre-PR and rename
+once the PR is created).
+
+If must-fix items exist, resolve them before pushing. If the review is
+clean, push and create a PR.
+
+### Tier 2 — GitHub review (post-push)
+
+Once pushed, CI runs build, clippy, test, and fmt checks. Claude Code
+Action and/or GitHub Copilot perform a second-round review on the PR
+automatically.
+
+After GitHub review activity, run `/pull-reviews <N>` to fetch the PR's
+review bodies and inline comments and **append them chronologically to the
+same `doc/reviews/review-NNNN.md`** used by Tier 1. The skill is idempotent
+— it records `<!-- gh-id: NNNNN -->` markers for each appended item and
+skips any id already present, so running it repeatedly only appends new
+comments. The result is one file per PR containing the full local + GitHub
+review history in order.
+
+Once the findings are addressed in a fix commit and pushed, run
+`/reply-reviews <N>` to post short replies to each unresolved comment
+thread on GitHub, citing the fix commit SHA. This closes the loop for
+the reviewer and leaves an audit trail linking each finding to its
+resolution. Re-running `/pull-reviews <N>` afterward mirrors the replies
+back into `review-NNNN.md`.
+
+**`review-NNNN.md` rides along with the PR that generated it.** Every
+`/pull-reviews` and `/reply-reviews` round that mutates the file must
+end in a commit on the PR branch (standalone `doc:` commit or folded
+into the round's fix commit). Don't leave it untracked between rounds
+— landing it after merge orphans the audit trail. Before final push,
+run `/pull-reviews <N>` one last time to capture any trailing comments
+and commit the result.
+
+The local review catches design issues and convention violations early.
+The GitHub review catches anything that slipped through and validates in
+the CI environment. Joining them into a single file per PR preserves the
+conversational flow and keeps the review record in one place.
 
 ## TDD workflow
 
