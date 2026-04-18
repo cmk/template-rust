@@ -106,6 +106,24 @@ commit that addressed the round's findings. The review file must ride
 along with the PR that generated it; landing it post-merge orphans the
 audit trail.
 
+### No-op rounds (all push-back, no fix commit)
+
+When a review round is entirely push-back — every comment is stale,
+incorrect, or otherwise doesn't warrant a code change — there is no fix
+commit to cite, and forcing a `doc:` commit just to mirror the replies
+adds a round-trip of CI without changing the code. In that case:
+
+- Post the replies via Step 4 as usual.
+- **Skip the mirror-and-commit step** unless the user asks for it
+  explicitly. The GitHub thread is the canonical record; re-pulling
+  later would still pick the replies up idempotently if the audit
+  trail becomes useful.
+- Do not force-push the branch solely to attach the mirrored replies.
+
+This applies only when the entire round is no-op. If even one thread
+gets a real fix, the fix commit goes up and the mirror rides with it
+per the normal flow.
+
 ## Step 6: Report
 
 Print a summary: how many threads replied to, and the path to the
