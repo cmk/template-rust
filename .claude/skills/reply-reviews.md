@@ -94,35 +94,21 @@ Fixed in 3bea723 — ...
 EOF
 ```
 
-## Step 5: Mirror locally and commit
+## Step 5: Mirror replies — only if there's a fix commit
 
-After posting, run `scripts/pull_reviews.py <N>` to append your replies
-to the local review file. Set-membership de-dup ensures only the new
-replies get added.
+If this round produced a fix commit (one or more threads got real
+changes), run `scripts/pull_reviews.py <N>` after posting to append
+your replies to `review-NNNN.md`, then **stage the updated file as part
+of the same fix commit** (or amend it in before pushing). The review
+file always rides with the fix commit that addresses the round it
+covers — never as a standalone `doc:` commit.
 
-Then **commit the updated review file to the PR branch** — either as a
-standalone `doc: update review-NNNN.md` commit or folded into the fix
-commit that addressed the round's findings. The review file must ride
-along with the PR that generated it; landing it post-merge orphans the
-audit trail.
-
-### No-op rounds (all push-back, no fix commit)
-
-When a review round is entirely push-back — every comment is stale,
-incorrect, or otherwise doesn't warrant a code change — there is no fix
-commit to cite, and forcing a `doc:` commit just to mirror the replies
-adds a round-trip of CI without changing the code. In that case:
-
-- Post the replies via Step 4 as usual.
-- **Skip the mirror-and-commit step** unless the user asks for it
-  explicitly. The GitHub thread is the canonical record; re-pulling
-  later would still pick the replies up idempotently if the audit
-  trail becomes useful.
-- Do not force-push the branch solely to attach the mirrored replies.
-
-This applies only when the entire round is no-op. If even one thread
-gets a real fix, the fix commit goes up and the mirror rides with it
-per the normal flow.
+**If this round is entirely no-op** — every thread got push-back, no
+code changed — there is no fix commit to ride on, so there is nothing
+to push. Skip the mirror step. The GitHub thread is the canonical
+record; a later round's fix commit can pick up all pending replies via
+one `pull_reviews.py` run at that time. Don't force-push solely to
+attach an audit trail.
 
 ## Step 6: Report
 
@@ -136,6 +122,8 @@ review file. One paragraph max.
   reply closes the thread.
 - **One reply per thread, not per comment.** If a thread already has
   your reply buried three deep, don't post another.
-- **The review file belongs on the PR branch.** Every `/pull-reviews`
-  and `/reply-reviews` run that mutates `review-NNNN.md` should end in
-  a commit on the same branch as the PR. Don't leave it untracked.
+- **The review file rides with fix commits, not standalone.** A mutated
+  `review-NNNN.md` lands as part of the next round's fix commit. If a
+  round produces no fix, the file stays on disk uncommitted; a later
+  round's fix picks up all pending replies via one `pull_reviews.py`
+  run at commit time.
