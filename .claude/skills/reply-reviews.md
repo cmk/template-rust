@@ -15,8 +15,11 @@ addressed locally but not yet answered on GitHub. This closes the loop
 for the reviewer and leaves a paper trail linking each finding to the
 commit that addressed it.
 
-Intended to run **after** a fix commit that addresses the feedback has
-been pushed — the replies cite the fix commit's SHA.
+Intended to run **after** a fix commit that addresses the feedback
+exists locally — the replies cite the fix commit's SHA. Running before
+the branch is pushed lets the mirrored replies ride with the fix
+commit (via `--amend` if needed); running after the push is fine too,
+but the mirror then waits for the next round's fix commit to carry it.
 
 ---
 
@@ -107,7 +110,7 @@ covers — never as a standalone `doc:` commit.
 code changed — there is no fix commit to ride on, so there is nothing
 to push. Skip the mirror step. The GitHub thread is the canonical
 record; a later round's fix commit can pick up all pending replies via
-one `pull_reviews.py` run at that time. Don't force-push solely to
+one `scripts/pull_reviews.py` run at that time. Don't force-push solely to
 attach an audit trail.
 
 ## Step 6: Report
@@ -125,5 +128,5 @@ review file. One paragraph max.
 - **The review file rides with fix commits, not standalone.** A mutated
   `review-NNNN.md` lands as part of the next round's fix commit. If a
   round produces no fix, the file stays on disk uncommitted; a later
-  round's fix picks up all pending replies via one `pull_reviews.py`
-  run at commit time.
+  round's fix picks up all pending replies via one
+  `scripts/pull_reviews.py` run at commit time.
