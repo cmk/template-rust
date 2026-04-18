@@ -45,16 +45,27 @@ the file is skipped. Note: it is **not** safe to assume a single
 different sequences, so max-id across both would silently drop later
 items from the lower-numbered sequence. Set membership avoids this.
 
-## Step 3: Commit the updated file
+## Step 3: Let the file ride with the next fix commit
 
-If new items were appended, **commit `review-NNNN.md` to the PR branch**
-— either as a standalone `doc: update review-NNNN.md` commit or folded
-into the current round's fix commit. The review file must ride along
-with the PR that generated it; landing it post-merge orphans the audit
-trail.
+The review file is not committed on its own. It rides with the **next
+round's fix commit** — the commit that addresses the comments you just
+pulled. The rhythm is:
 
-If there were no new items (script reported `no new items`), skip this
-step.
+- Round N-1: reviewer leaves comments → `pull_reviews.py` appends them
+  to `review-NNNN.md`.
+- Round N: you fix what warrants a fix → the fix commit stages the
+  updated `review-NNNN.md` alongside the code changes.
+- If round N is itself no-op (all push-back, no fix), there is no fix
+  commit and nothing to push. The GitHub thread is the canonical record
+  until a later round forces a commit anyway.
+
+So after running this skill: leave `review-NNNN.md` staged/unstaged on
+the branch. Do **not** open a standalone `doc: update review-NNNN.md`
+commit just to land it — that forces a CI round-trip for no code change.
+The fix commit that addresses this round's findings is the vehicle.
+
+If there were no new items (script reported `no new items`), there is
+nothing to stage.
 
 ## Step 4: Report
 
@@ -102,10 +113,9 @@ Reply (has `in_reply_to_id`):
 
 ## Notes
 
-- **The script does not auto-commit.** The agent must stage and commit
-  `review-NNNN.md` on the PR branch when new items were appended (see
-  Step 3). The file must ride along with the PR — don't leave it
-  untracked.
+- **The script does not auto-commit.** The file rides with the next
+  round's fix commit (see Step 3); don't land a standalone `doc:`
+  commit just to attach the audit trail.
 - **Idempotent** via set membership on `<!-- gh-id: -->` markers (not
   max-id, which would be unsound across review/comment sequences).
   Safe to re-run.
