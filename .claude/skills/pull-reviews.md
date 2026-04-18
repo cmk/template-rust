@@ -48,21 +48,24 @@ items from the lower-numbered sequence. Set membership avoids this.
 ## Step 3: Let the file ride with the next fix commit
 
 The review file is not committed on its own. It rides with the **next
-round's fix commit** — the commit that addresses the comments you just
-pulled. The rhythm is:
+review round's fix commit** — the commit that addresses the comments
+you just pulled. Using `R` for review rounds (distinct from `N`, which
+is the PR number throughout the docs), the rhythm is:
 
-- Round N-1: reviewer leaves comments → `pull_reviews.py` appends them
-  to `review-NNNN.md`.
-- Round N: you fix what warrants a fix → the fix commit stages the
+- Round R: reviewer leaves comments → `scripts/pull_reviews.py`
+  appends them to `review-NNNN.md`.
+- Round R+1: you fix what warrants a fix → the fix commit stages the
   updated `review-NNNN.md` alongside the code changes.
-- If round N is itself no-op (all push-back, no fix), there is no fix
-  commit and nothing to push. The GitHub thread is the canonical record
-  until a later round forces a commit anyway.
+- If round R+1 is itself no-op (all push-back, no fix), there is no
+  fix commit and nothing to push. The GitHub thread is the canonical
+  record until a later round forces a commit anyway.
 
-So after running this skill: leave `review-NNNN.md` staged/unstaged on
-the branch. Do **not** open a standalone `doc: update review-NNNN.md`
-commit just to land it — that forces a CI round-trip for no code change.
-The fix commit that addresses this round's findings is the vehicle.
+So after running this skill: keep `review-NNNN.md` modified but
+uncommitted until the fix commit is ready, then stage it alongside the
+code changes for that commit. Do **not** open a standalone
+`doc: update review-NNNN.md` commit just to land it — that forces a CI
+round-trip for no code change. The fix commit that addresses this
+round's findings is the vehicle.
 
 If there were no new items (script reported `no new items`), there is
 nothing to stage.
