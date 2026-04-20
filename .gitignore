@@ -17,3 +17,13 @@ __pycache__/
 
 # Personal project notes (not shared with agents or CI)
 doc/notes/
+
+# Secrets and local environment
+.env
+.env.*
+*.pem
+*.key
+*_rsa
+*_rsa.pub
+*.p12
+*.pfx

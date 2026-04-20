@@ -183,10 +183,21 @@ Every sprint follows this order:
 
 ### Pre-commit hook
 
-A Claude Code hook in `.claude/settings.json` runs `cargo test` and
-`cargo clippy` before every `git commit` tool call. If either fails,
-the commit is blocked. This is the automated quality gate; `/sprint-review`
-is the manual one.
+A Claude Code hook in `.claude/settings.json` runs three checks before
+every `git commit` tool call:
+
+1. `scripts/check-pii.sh` — grep the staged diff for absolute user-home
+   paths, private-key headers, and common API-token shapes. Fail fast
+   on any match. Allow-list exceptions go in `.pii-allow`.
+2. `cargo test --workspace` — all tests must pass.
+3. `cargo clippy --all-targets -- -D warnings` — matches CI.
+
+If any step fails, the commit is blocked. This is the automated
+quality gate; `/sprint-review` is the manual one.
+
+CI adds a `gitleaks` job (`.github/workflows/ci.yml`) that scans the
+full history on every PR as defense-in-depth against anything that
+bypasses the local hook (e.g. `git commit --no-verify`).
 
 ## Sprint plan format
 
