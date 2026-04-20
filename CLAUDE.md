@@ -78,8 +78,20 @@ core = ["dep:project-core"]
   - Properties that must hold for a sprint to ship are defined **in
     the plan's Verification table** before any code is written.
   - If a property test blocks progress during implementation, you may
-    `#[ignore]` it temporarily **but you must document it** in the
+    `#[ignore]` it temporarily but **you must document it** in the
     plan's Review section with the reason and a plan to re-enable.
+- **Use Rust's modern module layout.** If you have a specific reason why
+  you cannot then again **you must document it**. The modern layout does
+  not have a `mod.rs` file. The equivalent module sits one level up and
+  is named after the module directory:
+
+  ```
+  src/
+  ├── main.rs
+  ├── network.rs      <-- Defines 'network' module
+  └── network/
+      └── server.rs   <-- Submodule of 'network'
+  ```
 
 ### Session notes
 
