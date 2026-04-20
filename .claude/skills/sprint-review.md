@@ -162,7 +162,7 @@ sentence is enough — don't pad.
 ### Commit Hygiene
 
 - Does each commit leave the repo in a buildable, testable state?
-- Are commit messages conventional (feat/fix/test/refactor/doc/chore prefix)?
+- Are commit messages conventional (feat/fix/doc/test/task/debt prefix, optional scope)?
 - Are commits reasonably atomic, or are unrelated changes mixed?
 
 ### Code Quality
@@ -185,7 +185,7 @@ sentence is enough — don't pad.
 - For any module that parses, encodes, or transforms data: are there
   property tests? If not, flag this as a gap.
 - Do fixture-gated tests use `fixture_or_skip!` from
-  `studio_core::testing` (return early when fixture is absent, don't
+  `project_core::testing` (return early when fixture is absent, don't
   panic, don't `#[ignore]`)?
 - What edge cases do the tests miss? Be specific — "what happens if the
   TCP connection drops mid-NRPN" is useful; "more tests would be good"
@@ -236,8 +236,8 @@ When the reviewer agent returns:
 
 1. **Determine the review file path.** If a PR already exists for this
    branch, use its number. If not (pre-push), ask the user for the
-   expected PR number, or use `0000` as a placeholder and rename after
-   the PR is created.
+   expected PR number, or use `review.md` (no number) as a placeholder
+   and rename to `review-NNNN.md` after the PR is created.
 
 2. **Append** (do not overwrite) a dated section to
    `doc/reviews/review-NNNN.md` (create `doc/reviews/` and the file if

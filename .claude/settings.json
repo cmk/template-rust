@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cargo test --workspace --quiet 2>&1 && cargo clippy --all-targets --quiet 2>&1"
+            "command": "cargo test --workspace --quiet 2>&1 && cargo clippy --all-targets --quiet -- -D warnings 2>&1"
           }
         ]
       }

@@ -1,0 +1,13 @@
+[package]
+name = "project-cli"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = ["core"]
+core = ["dep:project-core"]
+
+[dependencies]
+project-core = { workspace = true, optional = true }

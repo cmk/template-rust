@@ -34,11 +34,10 @@ here relaxes that.
   file already establishes a consistent convention and this PR breaks
   it.
 - **Comment-style nits in illustrative code snippets.** Rust snippets
-  in design docs (`doc/designs/`) are illustrations, not `use`
-  statements a reader is expected to paste verbatim. A locator comment
-  like `// my-crate::module` communicates the same thing as
-  `// my_crate::module`; prefer whichever is already used consistently
-  in the file.
+  in docs are illustrations, not `use` statements a reader is expected
+  to paste verbatim. A locator comment like `// my-crate::module`
+  communicates the same thing as `// my_crate::module`; prefer
+  whichever is already used consistently in the file.
 - **Pre-existing patterns on unchanged lines.** If the PR touches file
   X and a pattern the reviewer would otherwise flag (missing `crates/`
   path prefix, hyphenated crate name, inconsistent formatting, etc.)

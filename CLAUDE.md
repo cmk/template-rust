@@ -18,8 +18,10 @@ before making any changes:
 git worktree add ../project-<task> -b <branch>
 ```
 
-Never run two Claude instances in the same worktree — cargo target-dir
-locks and fd contention will break one or both sessions.
+Never run two Claude instances in the same worktree. Cargo takes a
+file lock on `target/` during each build, so concurrent builds stall
+behind each other ("Blocking waiting for file lock"). Separate
+worktrees each get their own `target/` and sidestep the lock.
 
 ## Architecture
 
@@ -31,15 +33,16 @@ locks and fd contention will break one or both sessions.
 Cargo.toml              — workspace root
 crates/
   core/                 — shared types, test utilities, proptest strategies
+  cli/                  — binary entrypoint; feature-gates optional lib crates
 ```
 
-Feature flags on any binary crate's `Cargo.toml` control which library
+Feature flags on the binary crate's `Cargo.toml` control which library
 crates are compiled in:
 
 ```toml
 [features]
-default = ["foo"]
-foo = ["dep:crate-foo"]
+default = ["core"]
+core = ["dep:project-core"]
 ```
 
 ## Repository conventions
@@ -58,7 +61,7 @@ foo = ["dep:crate-foo"]
   free of commits that temporarily broke the build. Review-round commits
   (addressing reviewer feedback from an earlier push) remain standalone
   so the audit trail survives.
-- **No unsafe code**: `#![forbid(unsafe_code)]` when possible.
+- **No unsafe code**: every crate root must declare `#![forbid(unsafe_code)]`.
 - **Test fixtures are gitignored**, and a fresh checkout must pass
   `cargo test --workspace` with zero setup. Tests that depend on a
   fixture file must use the `fixture_or_skip!` macro from the core
@@ -80,23 +83,23 @@ foo = ["dep:crate-foo"]
 
 ### Session notes
 
-Session notes live in `doc/notes/note-YYYY-MM-DD-nn.md`. The final field
-`nn` is a counter that resets to 01 each day.
-
-When the user says "print to notes", append the requested responses to
-the current day's notes file in markdown format. Create the file if it
-doesn't exist.
+`doc/notes/` is gitignored and holds the user's personal notes for the
+project. Agents may read from it for context but must not write to it
+unless explicitly asked.
 
 ### Commit style
 
-Conventional commits, present-tense imperative subject:
+Conventional commits, present-tense imperative subject. Accepted prefixes:
+`feat`, `fix`, `doc`, `test`, `task`, `debt`. Scopes are allowed
+(e.g. `doc(skills):`, `fix(scripts):`).
 
 ```
 feat: Add parser for widget format
-fix: Handle timeout on reconnect
+fix(codec): Handle timeout on reconnect
 test: Add round-trip property tests for codec
 doc: Append Sprint 2 completion report
 task: Add serde to core dependencies
+debt: Remove dead handshake branch
 ```
 
 Keep subjects under 72 characters. Use the body for non-obvious decisions.
@@ -113,8 +116,8 @@ Before pushing to GitHub, run `/sprint-review`. This spawns an independent
 reviewer agent that examines `git diff origin/main...HEAD` and the commit
 log. The reviewer flags must-fix issues and follow-ups. The review is
 appended to `doc/reviews/review-NNNN.md`, where `NNNN` is the zero-padded
-PR number for the branch (use `0000` as a placeholder pre-PR and rename
-once the PR is created).
+PR number for the branch (use `doc/reviews/review.md` as a placeholder
+pre-PR and rename to `review-NNNN.md` once the PR is created).
 
 If must-fix items exist, resolve them before pushing. If the review is
 clean, push and create a PR.
@@ -169,7 +172,10 @@ Every sprint follows this order:
 4. Implement the module until all tests are green.
 5. Commit on the branch, when green.
 6. Run `/sprint-review` against the branch before merging.
-7. Rebase onto main: `git rebase main` then fast-forward main.
+7. Rebase and land on main. On the feature branch:
+   `git fetch origin && git rebase origin/main`.
+   Then fast-forward main:
+   `git checkout main && git merge --ff-only <branch>`.
 8. Clean up: `git worktree remove ../project-<sprint>`.
 9. Append deferred/review sections to the plan document. If any
    property tests were `#[ignore]`d during implementation, document

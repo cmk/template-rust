@@ -1,7 +1,6 @@
 # Build
 debug/
 target/
-Cargo.lock
 __pycache__/
 
 # Editor
@@ -15,3 +14,6 @@ __pycache__/
 
 # MCP server config — contains machine-local binary paths
 .mcp.json
+
+# Personal project notes (not shared with agents or CI)
+doc/notes/
