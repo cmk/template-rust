@@ -90,7 +90,7 @@ unless explicitly asked.
 ### Commit style
 
 Conventional commits, present-tense imperative subject. Accepted prefixes:
-`feat`, `fix`, `doc`, `test`, `task`, `debt`. Scopes are allowed
+`feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`. Scopes are allowed
 (e.g. `doc(skills):`, `fix(scripts):`).
 
 ```
