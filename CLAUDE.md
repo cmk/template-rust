@@ -11,12 +11,9 @@ A Rust workspace with multiple crates.
 At the start of each conversation, ask the user:
 "Are any other Claude instances working in this repo right now?"
 
-If yes (or if the user says "work in a worktree"), create a git worktree
-before making any changes:
-
-```zsh
-git worktree add ../project-<task> -b <branch>
-```
+If yes, a worktree is **mandatory** — see the TDD workflow's Step 1
+for the naming convention (`../<repo>.plan-YYYY-MM-DD-NN` + branch
+`plan/YYYY-MM-DD-NN`).
 
 Never run two Claude instances in the same worktree. Cargo takes a
 file lock on `target/` during each build, so concurrent builds stall
@@ -112,10 +109,15 @@ unless explicitly asked.
 ### Commit style
 
 Conventional commits, present-tense imperative subject. Accepted prefixes:
-`feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`. Scopes are allowed
-(e.g. `doc(skills):`, `fix(scripts):`).
+`plan`, `feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`. Scopes are
+allowed (e.g. `doc(skills):`, `fix(scripts):`).
+
+- `plan:` lands a new plan doc in `doc/plans/` — always the first
+  commit on a `plan/YYYY-MM-DD-NN` branch.
+- `feat:` and the rest cover the implementation that follows.
 
 ```
+plan: Widget-format parser, sprint goals and verification table
 feat: Add parser for widget format
 fix(codec): Handle timeout on reconnect
 test: Add round-trip property tests for codec
@@ -219,27 +221,39 @@ rest of the loop runs unattended.
 
 ## TDD workflow
 
-Every sprint follows this order:
+Every sprint follows this order. Naming is keyed to the plan filename:
+a plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
+`plan/YYYY-MM-DD-NN` and (if used) worktree `../<repo>.plan-YYYY-MM-DD-NN`.
+One slug, three places.
 
-1. Write the plan to `doc/plans/plan-YYYY-MM-DD-nn.md` before touching source.
+1. **Pick the plan filename.** `ls doc/plans/plan-YYYY-MM-DD-*.md` to
+   find the next unused `NN` for today's date (zero-padded, starts at
+   `01`). No writes yet — main stays clean.
+2. **Ask the user: worktree or branch?** Worktree is mandatory if
+   another Claude instance is active in this repo; otherwise it's the
+   user's call. Then:
+   - worktree: `git worktree add ../<repo>.plan-YYYY-MM-DD-NN -b plan/YYYY-MM-DD-NN`, `cd` into it.
+   - branch: `git switch -c plan/YYYY-MM-DD-NN`.
+3. **Write the plan** to `doc/plans/plan-YYYY-MM-DD-NN.md` on that branch.
    The plan's **Verification** table must list the property tests that
    must pass for the sprint to ship (e.g., "message round-trips through
-   encode/decode", "parser never panics on arbitrary input").
-2. Create a worktree and branch for the sprint:
-   `git worktree add ../project-<sprint> -b sprint/<name>`
-3. Write proptest properties and test skeletons that compile but
+   encode/decode", "parser never panics on arbitrary input"). Commit
+   as `plan: <one-line goal>` — this is the sprint-opener, always the
+   first commit on the branch.
+4. Write proptest properties and test skeletons that compile but
    trivially fail. Properties come first — they define the contract.
-4. Implement the module until all tests are green.
-5. Commit on the branch, when green.
-6. Run `/sprint-review` against the branch before merging.
-7. Rebase and land on main. On the feature branch:
+5. Implement the module until all tests are green.
+6. Commit on the branch, when green.
+7. Run `/sprint-review` against the branch before merging.
+8. Rebase and land on main. On the feature branch:
    `git fetch origin && git rebase origin/main`.
    Then fast-forward main:
-   `git checkout main && git merge --ff-only <branch>`.
-8. Clean up: `git worktree remove ../project-<sprint>`.
-9. Append deferred/review sections to the plan document. If any
-   property tests were `#[ignore]`d during implementation, document
-   the reason and the re-enablement plan here.
+   `git checkout main && git merge --ff-only plan/YYYY-MM-DD-NN`.
+9. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
+   (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
+10. Append deferred/review sections to the plan document. If any
+    property tests were `#[ignore]`d during implementation, document
+    the reason and the re-enablement plan here.
 
 ### Pre-commit hook
 
