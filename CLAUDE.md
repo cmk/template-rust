@@ -31,10 +31,20 @@ worktrees each get their own `target/` and sidestep the lock.
 
 ```
 Cargo.toml              — workspace root
+rust-toolchain.toml     — pinned Rust version (1.85) + components for local and CI
+rustfmt.toml            — formatter config (edition 2024)
+deny.toml               — cargo-deny license/advisory/source policy
 crates/
   core/                 — shared types, test utilities, proptest strategies
   cli/                  — binary entrypoint; feature-gates optional lib crates
 ```
+
+The active Rust toolchain is pinned via `rust-toolchain.toml`; `rustup`
+reads it automatically when you `cd` into the repo, and CI installs
+the same channel via `dtolnay/rust-toolchain@1.85.0`. Bumping MSRV
+means updating `rust-version` in `Cargo.toml`, the channel in
+`rust-toolchain.toml`, and the action ref in `.github/workflows/ci.yml`
+together.
 
 Feature flags on the binary crate's `Cargo.toml` control which library
 crates are compiled in:
