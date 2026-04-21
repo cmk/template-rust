@@ -21,7 +21,8 @@ stateDiagram-v2
     main_clean --> on_branch: git worktree add / git switch -c
     on_branch --> plan_committed: write plan + `plan:` commit
     plan_committed --> impl_green: TDD loop (tests + feat/fix commits)
-    impl_green --> local_reviewed: /sprint-review
+    impl_green --> plan_finalized: append Deferred + Review sections
+    plan_finalized --> local_reviewed: /sprint-review
     local_reviewed --> impl_green: must-fix items surfaced
     local_reviewed --> pushed: clean, git push
     pushed --> gh_review: CI runs + reviewers post
@@ -42,8 +43,11 @@ stateDiagram-v2
   the cycle — it forces either a wasted `doc:` commit (extra CI
   round-trip) or a disallowed force-push.
 - `local_reviewed → impl_green` is the must-fix loop-back. The fix
-  commits stay on the same branch; `/sprint-review` re-runs against
-  the new tip.
+  commits stay on the same branch; re-append any new Deferred/Review
+  notes, then `/sprint-review` re-runs against the new tip.
+- `plan_finalized` sits deliberately *before* `local_reviewed`: the
+  reviewer reads the plan as context and should see its final form,
+  including what was intentionally cut and why.
 
 ## `/watch-pr` dynamic-mode loop
 
