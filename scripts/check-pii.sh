@@ -3,20 +3,23 @@
 #
 # Scans only lines the commit ADDS (drops unchanged context, deletions,
 # and pre-existing content). Checks for:
-#   - Absolute user-home paths: /Users/<name>/ (catches any committer)
+#   - Absolute user-home paths: /Users/<name>/ (macOS), /home/<name>/
+#     (Linux) — catches any committer, including CI runner paths
 #   - Private-key headers: -----BEGIN ... PRIVATE KEY-----
 #   - Cloud/API token shapes: AWS AKIA, GitHub ghp_, Anthropic/OpenAI sk-
 #
 # Allow-list exceptions live in `.pii-allow` (one extended regex per
 # line; blank lines and `#`-comments ignored). A hit is dropped if the
 # offending line matches any allow-list pattern, so exceptions stay
-# explicit and reviewable.
+# explicit and reviewable. `/home/runner/` paths in CI docs are a
+# typical allow-list candidate.
 #
 # Runtime is O(diff), not O(repo).
 set -euo pipefail
 
 patterns=(
   '/Users/[a-zA-Z0-9._-]+/'
+  '/home/[a-zA-Z0-9._-]+/'
   '-----BEGIN [A-Z ]*PRIVATE KEY-----'
   'AKIA[0-9A-Z]{16}'
   'ghp_[A-Za-z0-9]{36}'

@@ -18,6 +18,9 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt (warn only)
+        run: cargo fmt --all -- --check
+        continue-on-error: true
       - run: cargo test --workspace
       - run: cargo clippy --all-targets -- -D warnings
 
