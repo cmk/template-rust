@@ -254,16 +254,19 @@ One slug, three places.
    trivially fail. Properties come first — they define the contract.
 5. Implement the module until all tests are green.
 6. Commit on the branch, when green.
-7. Run `/sprint-review` against the branch before merging.
-8. Rebase and land on main. On the feature branch:
+7. **Append Deferred and Review sections to the plan document.** If any
+   property tests were `#[ignore]`d during implementation, document
+   the reason and the re-enablement plan here. This must happen
+   *before* the local review — the reviewer agent reads the plan as
+   context and should see the final version, including what was
+   intentionally cut and why. Commit as `doc: Update plan NN deferred/review sections`.
+8. Run `/sprint-review` against the branch before merging.
+9. Rebase and land on main. On the feature branch:
    `git fetch origin && git rebase origin/main`.
    Then fast-forward main:
    `git checkout main && git merge --ff-only plan/YYYY-MM-DD-NN`.
-9. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
-   (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
-10. Append deferred/review sections to the plan document. If any
-    property tests were `#[ignore]`d during implementation, document
-    the reason and the re-enablement plan here.
+10. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
+    (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
 
 ### Pre-commit hook
 
