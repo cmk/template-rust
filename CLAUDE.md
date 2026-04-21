@@ -149,15 +149,15 @@ The coding agent makes atomic commits as it works. Each commit must pass
 Before pushing to GitHub, run `/sprint-review`. This spawns an independent
 reviewer agent that examines `git diff origin/main...HEAD` and the commit
 log. The reviewer flags must-fix issues and follow-ups. The review is
-appended to `doc/reviews/review-NNNN.md`, where `NNNN` is the zero-padded
+appended to `doc/reviews/review-NNNNN.md`, where `NNNNN` is the zero-padded
 number the branch's PR will receive.
 
-Pre-PR, `/sprint-review` predicts `NNNN` by calling
+Pre-PR, `/sprint-review` predicts `NNNNN` by calling
 `scripts/next_pr_number.sh`, which queries the repo's highest existing
 issue/PR number via `gh api` and adds one (GitHub shares its numbering
 sequence between issues and PRs). The review file is born with its
-final name and never needs to be renamed. `review-0000.md` is a
-protected sentinel — real reviews start at `0001`.
+final name and never needs to be renamed. `review-00000.md` is a
+protected sentinel — real reviews start at `00001`.
 
 If must-fix items exist, resolve them before pushing. If the review is
 clean, push and create a PR.
@@ -171,7 +171,7 @@ perform a second-round review on the PR automatically.
 
 After GitHub review activity, run `/pull-reviews <N>` to fetch the PR's
 review bodies and inline comments and **append them chronologically to the
-same `doc/reviews/review-NNNN.md`** used by Tier 1. The command is
+same `doc/reviews/review-NNNNN.md`** used by Tier 1. The command is
 idempotent — it records `<!-- gh-id: NNNNN -->` markers for each appended
 item and skips any id already present, so running it repeatedly only
 appends new comments. The result is one file per PR containing the full
@@ -180,7 +180,7 @@ local + GitHub review history in order.
 Once the findings are addressed in a fix commit **locally (not yet
 pushed)**, run `/reply-reviews <N>`. The command does the whole round
 in order: posts replies to each unresolved thread, runs
-`scripts/pull_reviews.py` to mirror the replies into `review-NNNN.md`,
+`scripts/pull_reviews.py` to mirror the replies into `review-NNNNN.md`,
 and `git commit --amend`s the mutated doc into the same fix commit. You
 then `git push` once — code + replies + review doc land in a single
 round trip.

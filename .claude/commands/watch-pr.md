@@ -69,7 +69,7 @@ scripts/pull_reviews.py <N>
 
 ## Step 2: Triage the new items
 
-Read the newly appended block in `doc/reviews/review-NNNN.md`. For each
+Read the newly appended block in `doc/reviews/review-NNNNN.md`. For each
 new top-level thread, classify it into exactly one bucket:
 
 - **auto-fix** — reviewer's intent is unambiguous AND the change is
@@ -139,7 +139,7 @@ for each thread: scripts/reply_review.py <N> <in_reply_to_id> "<body>"
 scripts/pull_reviews.py <N>
 
 # Fold the doc update into the fix commit
-git add doc/reviews/review-NNNN.md
+git add doc/reviews/review-NNNNN.md
 git commit --amend --no-edit
 ```
 
@@ -147,7 +147,7 @@ The amend is safe because Step 0d confirmed the fix commit is unpushed.
 
 If Step 3 made no commit (all items were push-back / defer / ask) the
 reply-post still happens, but there's no commit to amend. In that case
-leave `review-NNNN.md` modified-but-uncommitted — the next round's fix
+leave `review-NNNNN.md` modified-but-uncommitted — the next round's fix
 commit will fold it in (matching `/pull-reviews`'s standalone-use
 contract).
 

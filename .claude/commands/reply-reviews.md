@@ -1,12 +1,12 @@
 ---
-description: Finalize a PR review round before push. Posts replies to each unresolved thread, mirrors the replies back into review-NNNN.md via pull_reviews.py, and folds the mutated doc into the round's fix commit via git commit --amend. One push delivers the whole round. Refuses to run if the fix commit was already pushed (which would force an extra commit or force-push).
+description: Finalize a PR review round before push. Posts replies to each unresolved thread, mirrors the replies back into review-NNNNN.md via pull_reviews.py, and folds the mutated doc into the round's fix commit via git commit --amend. One push delivers the whole round. Refuses to run if the fix commit was already pushed (which would force an extra commit or force-push).
 argument-hint: <pr-number>
 ---
 
 # /reply-reviews — Finalize a Review Round (Before Push)
 
 Posts short replies to each unresolved PR review thread, mirrors them
-back into `doc/reviews/review-NNNN.md`, and folds the resulting doc
+back into `doc/reviews/review-NNNNN.md`, and folds the resulting doc
 update into the round's **unpushed** fix commit. Stops before `git push`
 — the user runs that explicitly as the last step, so one push delivers
 code + replies + review doc.
@@ -68,7 +68,7 @@ git log "origin/$branch..HEAD" --oneline
 
 ### 0c. Working tree sanity
 
-Run `git status`. If any path other than `doc/reviews/review-NNNN.md`
+Run `git status`. If any path other than `doc/reviews/review-NNNNN.md`
 has uncommitted changes, stop and ask the user to commit or stash
 first. The amend in Step 6 is surgical — it shouldn't sweep up
 unrelated dirty files.
@@ -89,7 +89,7 @@ which threads you should reply to and what the replies should say.
 
 ## Step 2: Identify unreplied threads
 
-Read `doc/reviews/review-NNNN.md`. A **thread** is a top-level inline
+Read `doc/reviews/review-NNNNN.md`. A **thread** is a top-level inline
 comment header plus any replies underneath it, terminating at the next
 `### ` or end of file. Thread headers look like:
 
@@ -151,12 +151,12 @@ scripts/pull_reviews.py <N>
 ```
 
 The script appends the replies you just posted (plus anything else new)
-to `review-NNNN.md` via set-membership de-dup — safe to re-run.
+to `review-NNNNN.md` via set-membership de-dup — safe to re-run.
 
 ## Step 6: Fold the doc update into the round's fix commit
 
 ```
-git add doc/reviews/review-NNNN.md
+git add doc/reviews/review-NNNNN.md
 git commit --amend --no-edit
 ```
 
@@ -204,5 +204,5 @@ If every thread got push-back and no code changed this round, there is
 - **One reply per thread, not per comment.** If a thread already has
   a human reply, don't post another.
 - **The review file rides with the fix commit.** Never as a standalone
-  `doc: update review-NNNN.md` commit — that was the ordering bug this
+  `doc: update review-NNNNN.md` commit — that was the ordering bug this
   command eliminates.

@@ -1,5 +1,5 @@
 ---
-description: Tier-1 local pre-push code review. Spawns an independent reviewer agent to examine the branch diff against origin/main and writes the review to doc/reviews/review-NNNN.md.
+description: Tier-1 local pre-push code review. Spawns an independent reviewer agent to examine the branch diff against origin/main and writes the review to doc/reviews/review-NNNNN.md.
 argument-hint: (no args)
 ---
 
@@ -224,16 +224,16 @@ and specific. Cite file paths and line numbers. Keep the total review under
 
 ## Step 5: Place the output
 
-Review files are organized by PR number: `doc/reviews/review-NNNN.md`
-where `NNNN` is the zero-padded PR number (e.g., `review-0017.md`).
+Review files are organized by PR number: `doc/reviews/review-NNNNN.md`
+where `NNNNN` is the zero-padded PR number (e.g., `review-00017.md`).
 Each file accumulates all review rounds — local and GitHub — as
-dated sections. `review-0000.md` is a protected sentinel; do not write
+dated sections. `review-00000.md` is a protected sentinel; do not write
 review content into it.
 
 When the reviewer agent returns:
 
 1. **Determine the review file path.** Always name the file
-   `doc/reviews/review-NNNN.md` — there is no placeholder filename.
+   `doc/reviews/review-NNNNN.md` — there is no placeholder filename.
    - If a PR already exists for this branch, use its number:
      ```
      gh pr view --json number --jq .number
@@ -255,7 +255,7 @@ When the reviewer agent returns:
      else used the number.
 
 2. **Append** (do not overwrite) a dated section to
-   `doc/reviews/review-NNNN.md` (create `doc/reviews/` and the file if
+   `doc/reviews/review-NNNNN.md` (create `doc/reviews/` and the file if
    they don't exist):
 
    ```markdown

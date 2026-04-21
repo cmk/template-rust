@@ -1,17 +1,17 @@
 ---
-description: Fetch GitHub PR review bodies and inline comments for a PR and append new ones chronologically to doc/reviews/review-NNNN.md. Lower-level primitive — normally invoked by /reply-reviews, but usable standalone to refresh the doc before final push.
+description: Fetch GitHub PR review bodies and inline comments for a PR and append new ones chronologically to doc/reviews/review-NNNNN.md. Lower-level primitive — normally invoked by /reply-reviews, but usable standalone to refresh the doc before final push.
 argument-hint: <pr-number>
 ---
 
 # Pull Reviews — Fetch GitHub Comments to Local File
 
 Fetch review comments from a GitHub PR and append new ones chronologically
-to `doc/reviews/review-NNNN.md`. The heavy lifting lives in
+to `doc/reviews/review-NNNNN.md`. The heavy lifting lives in
 `scripts/pull_reviews.py`; this command is a thin wrapper around it.
 
 **In the normal review-round workflow, `/reply-reviews` invokes this
 internally** after posting replies, so you rarely run it by hand.
-Standalone use is for: (a) refreshing `review-NNNN.md` right before the
+Standalone use is for: (a) refreshing `review-NNNNN.md` right before the
 final pre-merge push to capture any trailing reviewer comments; or
 (b) catching up after a round where someone else pushed review activity
 to the PR.
@@ -42,7 +42,7 @@ iterating `?per_page=100&page=N` explicitly against the GitHub API
 (chosen over `gh api --paginate --slurp` because `--slurp` requires
 gh >= 2.47), merges them chronologically, de-dupes via set membership
 on `<!-- gh-id: -->` markers, hyperlinks headers to GitHub permalinks,
-absolute-ifies relative links in bodies, and creates `review-NNNN.md`
+absolute-ifies relative links in bodies, and creates `review-NNNNN.md`
 with a `# PR #N — <title>` header if it doesn't exist.
 
 The script is idempotent: any item whose `gh-id` is already present in
@@ -64,7 +64,7 @@ pre-push fix commit, so one push delivers everything in order.
 If you invoked `/pull-reviews` standalone (no paired reply round), the
 file stays modified-but-uncommitted on disk. A later `/reply-reviews`
 will pick it up and fold it in. Do **not** open a standalone
-`doc: update review-NNNN.md` commit just to land it — that forces a CI
+`doc: update review-NNNNN.md` commit just to land it — that forces a CI
 round-trip for no code change and was the ordering bug the unified
 `/reply-reviews` was designed to eliminate.
 

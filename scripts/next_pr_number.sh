@@ -11,7 +11,7 @@
 # issues with a `pull_request` key), so `state=all` ordered by
 # creation gives the current maximum in a single call.
 #
-# Used by `/sprint-review` to name `doc/reviews/review-NNNN.md` before
+# Used by `/sprint-review` to name `doc/reviews/review-NNNNN.md` before
 # the PR is opened, so the review file is born with its final name and
 # never needs to be renamed.
 #
