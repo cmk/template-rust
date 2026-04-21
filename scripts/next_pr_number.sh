@@ -12,8 +12,10 @@
 # creation gives the current maximum in a single call.
 #
 # Used by `/sprint-review` to name `doc/reviews/review-NNNNN.md` before
-# the PR is opened, so the review file is born with its final name and
-# never needs to be renamed.
+# the PR is opened. The prediction is usually final, but if another
+# issue or PR is opened between the prediction and the PR being
+# created, the number drifts and the review file has to be renamed
+# to match the number GitHub actually assigned.
 #
 # Usage:
 #     scripts/next_pr_number.sh [owner/name]

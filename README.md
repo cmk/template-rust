@@ -30,7 +30,7 @@ is the human-facing tour.
   new reviewer activity, auto-fixes items whose intent is
   unambiguous (one file, <20 lines, no API removal), runs the
   `/reply-reviews` flow, and **stops before push**. Dynamic-mode
-  backoff: 5/5/5/10/10 min, auto-quit after 5 quiet ticks.
+  backoff: 5/5/5/10/10 min, auto-quit on the 6th quiet tick.
 - **PR-number prediction** (`scripts/next_pr_number.sh`): review
   files are named `review-NNNNN.md` from the start, before the PR is
   opened.

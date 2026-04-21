@@ -155,9 +155,12 @@ number the branch's PR will receive.
 Pre-PR, `/sprint-review` predicts `NNNNN` by calling
 `scripts/next_pr_number.sh`, which queries the repo's highest existing
 issue/PR number via `gh api` and adds one (GitHub shares its numbering
-sequence between issues and PRs). The review file is born with its
-final name and never needs to be renamed. `review-00000.md` is a
-protected sentinel — real reviews start at `00001`.
+sequence between issues and PRs). The prediction is usually final,
+but if another issue or PR is opened between running `/sprint-review`
+and opening this branch's PR, the predicted number can drift — in
+that case rename the review file to match the number GitHub actually
+assigned. `review-00000.md` is a protected sentinel — real reviews
+start at `00001`.
 
 If must-fix items exist, resolve them before pushing. If the review is
 clean, push and create a PR.
@@ -188,8 +191,8 @@ round trip.
 **Do not push before running `/reply-reviews`.** The amend-into-fix-commit
 step requires the commit to be unpushed. Pushing first strands the
 mirrored replies in the working tree and forces either a wasted `doc:`
-commit (extra CI round-trip) or a force-push (disallowed by
-`.claude/settings.local.json`'s deny list). `/reply-reviews` enforces
+commit (extra CI round-trip) or a force-push that this workflow is
+designed to avoid. `/reply-reviews` enforces
 this: it refuses to run if HEAD is not ahead of `origin/<branch>` while
 unreplied threads still exist.
 
