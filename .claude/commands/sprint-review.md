@@ -1,10 +1,6 @@
 ---
-name: sprint-review
-description: >
-  Local pre-push code review (Tier 1). Spawns an independent reviewer agent
-  to examine the branch diff against `origin/main`. Use when the user says
-  "/sprint-review", "review the branch", "review before push", or after
-  completing work on a feature branch before pushing to GitHub.
+description: Tier-1 local pre-push code review. Spawns an independent reviewer agent to examine the branch diff against origin/main and writes the review to doc/reviews/review-NNNN.md.
+argument-hint: (no args)
 ---
 
 # Sprint Review — Tier 1 (Local)
@@ -12,7 +8,7 @@ description: >
 You are orchestrating a **local, pre-push** code review. This is Tier 1 of
 a two-tier system:
 
-- **Tier 1 (this skill):** Independent agent reviews `origin/main...HEAD` locally.
+- **Tier 1 (this command):** Independent agent reviews `origin/main...HEAD` locally.
   Gate before pushing.
 - **Tier 2 (GitHub):** After push, CI runs `cargo test --workspace` and
   `cargo clippy --all-targets -- -D warnings` (see
@@ -228,16 +224,35 @@ and specific. Cite file paths and line numbers. Keep the total review under
 
 ## Step 5: Place the output
 
-Review files are organized by PR number: `doc/reviews/review-NNNN.md` where
-`NNNN` is the zero-padded PR number (e.g., `review-0017.md`). Each file
-accumulates all review rounds — local and GitHub — as dated sections.
+Review files are organized by PR number: `doc/reviews/review-NNNN.md`
+where `NNNN` is the zero-padded PR number (e.g., `review-0017.md`).
+Each file accumulates all review rounds — local and GitHub — as
+dated sections. `review-0000.md` is a protected sentinel; do not write
+review content into it.
 
 When the reviewer agent returns:
 
-1. **Determine the review file path.** If a PR already exists for this
-   branch, use its number. If not (pre-push), ask the user for the
-   expected PR number, or use `review.md` (no number) as a placeholder
-   and rename to `review-NNNN.md` after the PR is created.
+1. **Determine the review file path.** Always name the file
+   `doc/reviews/review-NNNN.md` — there is no placeholder filename.
+   - If a PR already exists for this branch, use its number:
+     ```
+     gh pr view --json number --jq .number
+     ```
+   - Otherwise (the normal pre-push case), predict the number the
+     next-opened PR will receive:
+     ```
+     scripts/next_pr_number.sh
+     ```
+     The script queries `gh api repos/{repo}/issues` (GitHub shares
+     its numbering sequence between issues and PRs) and prints
+     `max + 1`. The next PR/issue opened in the repo will inherit
+     that number, so the file is named correctly the first time it's
+     written.
+   - If another issue or PR is opened in the repo between review and
+     push, the prediction drifts. Re-run the script before pushing
+     and rename the file if the number changed. Collisions surface
+     immediately — a file already at the predicted path means someone
+     else used the number.
 
 2. **Append** (do not overwrite) a dated section to
    `doc/reviews/review-NNNN.md` (create `doc/reviews/` and the file if

@@ -159,31 +159,63 @@ perform a second-round review on the PR automatically.
 
 After GitHub review activity, run `/pull-reviews <N>` to fetch the PR's
 review bodies and inline comments and **append them chronologically to the
-same `doc/reviews/review-NNNN.md`** used by Tier 1. The skill is idempotent
-— it records `<!-- gh-id: NNNNN -->` markers for each appended item and
-skips any id already present, so running it repeatedly only appends new
-comments. The result is one file per PR containing the full local + GitHub
-review history in order.
+same `doc/reviews/review-NNNN.md`** used by Tier 1. The command is
+idempotent — it records `<!-- gh-id: NNNNN -->` markers for each appended
+item and skips any id already present, so running it repeatedly only
+appends new comments. The result is one file per PR containing the full
+local + GitHub review history in order.
 
-Once the findings are addressed in a fix commit and pushed, run
-`/reply-reviews <N>` to post short replies to each unresolved comment
-thread on GitHub, citing the fix commit SHA. This closes the loop for
-the reviewer and leaves an audit trail linking each finding to its
-resolution. Re-running `/pull-reviews <N>` afterward mirrors the replies
-back into `review-NNNN.md`.
+Once the findings are addressed in a fix commit **locally (not yet
+pushed)**, run `/reply-reviews <N>`. The command does the whole round
+in order: posts replies to each unresolved thread, runs
+`scripts/pull_reviews.py` to mirror the replies into `review-NNNN.md`,
+and `git commit --amend`s the mutated doc into the same fix commit. You
+then `git push` once — code + replies + review doc land in a single
+round trip.
 
-**`review-NNNN.md` rides along with the PR that generated it.** Every
-`/pull-reviews` and `/reply-reviews` round that mutates the file must
-end in a commit on the PR branch (standalone `doc:` commit or folded
-into the round's fix commit). Don't leave it untracked between rounds
-— landing it after merge orphans the audit trail. Before final push,
-run `/pull-reviews <N>` one last time to capture any trailing comments
-and commit the result.
+**Do not push before running `/reply-reviews`.** The amend-into-fix-commit
+step requires the commit to be unpushed. Pushing first strands the
+mirrored replies in the working tree and forces either a wasted `doc:`
+commit (extra CI round-trip) or a force-push (disallowed by
+`.claude/settings.local.json`'s deny list). `/reply-reviews` enforces
+this: it refuses to run if HEAD is not ahead of `origin/<branch>` while
+unreplied threads still exist.
+
+`/pull-reviews <N>` remains available as a lower-level primitive for
+fetching comments without posting. Use it standalone only to refresh
+the doc right before the final pre-merge push, to capture any trailing
+reviewer comments; its output rides with the next fix commit, never as
+a standalone `doc:` commit.
 
 The local review catches design issues and convention violations early.
 The GitHub review catches anything that slipped through and validates in
 the CI environment. Joining them into a single file per PR preserves the
 conversational flow and keeps the review record in one place.
+
+### Automated poll loop (optional)
+
+For PRs where you don't want to manually ping "check the replies", pair
+`/watch-pr <N>` with `/loop`:
+
+```
+/loop 10m /watch-pr 17
+```
+
+Each tick does one of: (a) heartbeat if no new activity, (b) one
+finish-the-round cycle — auto-fix the trivially-clear items, push back
+or defer the rest, run the `/reply-reviews` flow, **stop before push**,
+or (c) `holding: fix commit pending push` if a previous round is still
+awaiting your push.
+
+Auto-fix is scoped tightly: only items where the reviewer's intent is
+unambiguous and the change is local (one file, under ~20 lines, no
+API removal, no cross-module reasoning). Anything involving judgment
+is classified as **needs you** and surfaced in the round report with
+`path:line` — those threads stay open on GitHub for you to resolve.
+
+The command never pushes. You still review the fix commit and run
+`git push` yourself — the single safety net that stays even when the
+rest of the loop runs unattended.
 
 ## TDD workflow
 
