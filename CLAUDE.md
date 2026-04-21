@@ -138,8 +138,14 @@ Before pushing to GitHub, run `/sprint-review`. This spawns an independent
 reviewer agent that examines `git diff origin/main...HEAD` and the commit
 log. The reviewer flags must-fix issues and follow-ups. The review is
 appended to `doc/reviews/review-NNNN.md`, where `NNNN` is the zero-padded
-PR number for the branch (use `doc/reviews/review.md` as a placeholder
-pre-PR and rename to `review-NNNN.md` once the PR is created).
+number the branch's PR will receive.
+
+Pre-PR, `/sprint-review` predicts `NNNN` by calling
+`scripts/next_pr_number.sh`, which queries the repo's highest existing
+issue/PR number via `gh api` and adds one (GitHub shares its numbering
+sequence between issues and PRs). The review file is born with its
+final name and never needs to be renamed. `review-0000.md` is a
+protected sentinel — real reviews start at `0001`.
 
 If must-fix items exist, resolve them before pushing. If the review is
 clean, push and create a PR.
