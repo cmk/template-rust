@@ -18,7 +18,12 @@ for the naming convention (`../<repo>.plan-YYYY-MM-DD-NN` + branch
 Never run two Claude instances in the same worktree. Cargo takes a
 file lock on `target/` during each build, so concurrent builds stall
 behind each other ("Blocking waiting for file lock"). Separate
-worktrees each get their own `target/` and sidestep the lock.
+worktrees each get their own `target/` and sidestep the lock —
+**unless** `CARGO_TARGET_DIR` is exported in your shell or
+`~/.cargo/config.toml` sets `[build] target-dir`, either of which
+forces every worktree to share one directory and reintroduces the
+lock. Verify with `cargo metadata --format-version 1 --no-deps | jq
+-r .target_directory` in two worktrees — different paths = safe.
 
 ## Architecture
 
