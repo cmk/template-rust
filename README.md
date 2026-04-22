@@ -43,7 +43,7 @@ stateDiagram-v2
     main_clean --> on_branch: git worktree add / git switch -c
     on_branch --> plan_committed: write plan + `plan:` commit
     plan_committed --> impl_green: TDD loop (tests + feat/fix commits)
-    impl_green --> plan_finalized: append Deferred + Review sections
+    impl_green --> plan_finalized: append Deferred + Review, draft PR body
     plan_finalized --> local_reviewed: /sprint-review
     local_reviewed --> impl_green: must-fix items surfaced
     local_reviewed --> pushed: clean, git push
