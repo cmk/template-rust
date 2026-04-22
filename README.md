@@ -58,6 +58,17 @@ stateDiagram-v2
 
 `fix_unpushed` is the load-bearing state — `/reply-reviews` only runs
 there, so the reply mirror never ends up stranded in the working tree.
+
+Two reasons for this ordering:
+
+1. **One CI run per round.** Amending into the fix commit means code +
+   replies + mirror ride a single push. The alternative — separate
+   commits for code and mirror — doubles the CI load per round.
+2. **Replies stay post-hoc to verified code.** The fix is committed and
+   its tests green *before* you reply on GitHub. Replying first would
+   publish commitments to the PR before the code is in final form, and
+   GitHub comments are permanent — editable, but not retractable.
+
 The `/watch-pr` loop has its own state diagram; both live in
 [doc/workflow.md](doc/workflow.md).
 
