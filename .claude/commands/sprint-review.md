@@ -63,24 +63,26 @@ git log origin/main..HEAD --oneline
 If the branch has not diverged from `origin/main`, abort with a
 message — there's nothing to review.
 
-**Verify the review file exists.** `/sprint-review` appends to a file
-created by TDD step 7; it never creates the file itself. Resolve
-`NNNNN`:
+**Verify the review file exists.** `/sprint-review` appends to a
+file created by TDD step 7; it never creates the file itself. Get
+its path:
 
 - If a PR already exists for this branch:
   ```
-  gh pr view --json number --jq .number
+  scripts/review_path.sh "$(gh pr view --json number --jq .number)"
   ```
 - Otherwise (the normal pre-push case):
   ```
-  scripts/next_pr_number.sh
+  scripts/review_path.sh
   ```
 
-Then confirm `doc/reviews/review-NNNNN.md` exists **and contains a
-`## Summary` section**. If either is missing, abort and tell the user
-to run TDD step 7 (finalize plan + draft PR description). Do not
-create the file and do not proceed to the reviewer — the PR body
-belongs in that commit, not as a post-hoc fabrication by this command.
+`review_path.sh` predicts (or accepts) the PR number and emits the
+zero-padded filename — no need to compose the path by hand. Then
+confirm the returned path exists **and contains a `## Summary`
+section**. If either is missing, abort and tell the user to run TDD
+step 7 (finalize plan + draft PR description). Do not create the
+file and do not proceed to the reviewer — the PR body belongs in
+that commit, not as a post-hoc fabrication by this command.
 
 ## Step 3: Gather context
 
