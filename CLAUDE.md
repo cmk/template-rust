@@ -22,8 +22,8 @@ worktrees each get their own `target/` and sidestep the lock —
 **unless** `CARGO_TARGET_DIR` is exported in your shell or
 `~/.cargo/config.toml` sets `[build] target-dir`, either of which
 forces every worktree to share one directory and reintroduces the
-lock. Verify with `cargo metadata --format-version 1 --no-deps | jq
--r .target_directory` in two worktrees — different paths = safe.
+lock. Verify with `cargo metadata --format-version 1 --no-deps | jq -r .target_directory`
+in two worktrees — different paths = safe.
 
 ## Architecture
 
@@ -92,10 +92,10 @@ core = ["dep:project-core"]
   - If a property test blocks progress during implementation, you may
     `#[ignore]` it temporarily but **you must document it** in the
     plan's Review section with the reason and a plan to re-enable.
-- **Use Rust's modern module layout.** If you have a specific reason why
-  you cannot then again **you must document it**. The modern layout does
-  not have a `mod.rs` file. The equivalent module sits one level up and
-  is named after the module directory:
+- **Use Rust's modern module layout.** If you have a specific reason
+  not to, **document it**. The modern layout does not have a `mod.rs`
+  file. The equivalent module sits one level up and is named after
+  the module directory:
 
   ```
   src/

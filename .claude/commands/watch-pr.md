@@ -41,9 +41,12 @@ remote_branch=$(gh pr view <N> --json headRefName --jq .headRefName)
 
 ### 0c. Working tree clean?
 
-`git status --porcelain` must be empty. If dirty, exit with a message —
-a prior run may have left something mid-flight, or the user is working.
-Do **not** touch it.
+`git status --porcelain` must be empty **except** that
+`doc/reviews/review-<N>.md` for this PR may be modified or untracked
+(Step 4 leaves it that way when there's no fix commit to amend into).
+If any other path is dirty, exit with a message — a prior run may have
+left something mid-flight, or the user is working. Do **not** touch it.
+If the only dirty path is this PR's review doc, continue.
 
 ### 0d. No pending push?
 
