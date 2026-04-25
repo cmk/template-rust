@@ -10,7 +10,10 @@
 #       --body-file <(scripts/extract_pr_body.sh 17)
 #
 # Content is taken between the `## Summary` heading (exclusive) and the
-# next `## ` heading (exclusive), and printed verbatim to stdout.
+# first review marker (exclusive): `## Local review (` from
+# /sprint-review or `<!-- gh-id: ` from pull_reviews.py. Sibling
+# sections like `## Test plan` are NOT truncated. Printed verbatim to
+# stdout.
 #
 # Fails loudly with a nonzero exit and a message on stderr if:
 #   - the argument is missing or not numeric
