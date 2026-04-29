@@ -25,11 +25,11 @@ forces every worktree to share one directory and reintroduces the
 lock. Verify with `cargo metadata --format-version 1 --no-deps | jq -r .target_directory`
 in two worktrees — different paths = safe.
 
-## Architecture
+## Project Architecture
 
 <!-- Replace this section with your architecture overview. -->
 
-### Workspace layout
+### Rust Workspace
 
 ```
 Cargo.toml              — workspace root
@@ -57,50 +57,13 @@ default = ["core"]
 core = ["dep:project-core"]
 ```
 
-## The gardener rule — flag and fix drift inline
+### Session Notes
 
-Weeds are weeds, regardless of who planted them. Whenever an agent
-encounters a violation of any rule in this file — stale comment
-referencing a renamed identifier, proptest generator bounded to
-dodge a wrap, `expect()` string that lies about its precondition,
-`#[ignore]`d test without a re-enablement plan, missing proptest
-the verification table mandated, etc. — it does not get to silently
-walk past because "I didn't write that."
+`doc/notes/` is gitignored and holds the user's personal notes for the
+project. Agents may read from it for context but must not write to it
+unless explicitly asked.
 
-**Minimum bar:**
-
-- **Flag it.** List the violation in the plan's `## Review` section:
-  `file:line — rule — one-sentence consequence`.
-- **Offer to fix the minor ones.** Local, single-file, no API
-  change, doesn't expand sprint scope: ask the user in chat before
-  merging. ("I noticed `foo/bar.rs:42` still says `old_name`; fold
-  the fix into this branch?") The user decides.
-- **Defer the rest with a tracking note.** If the fix is too big to
-  absorb in the current sprint, the `## Review` entry IS the plan:
-  name the cleanup specifically enough that the next plan branch
-  can pick it up.
-
-**What does NOT need surfacing.** Drift CI already catches: `cargo
-fmt --check`, `cargo clippy --all-targets -- -D warnings`,
-`gitleaks`, `scripts/check-pii.sh`. The gate is the safety net for
-those.
-
-**What MUST be surfaced.** Anything that lives below the CI gate
-because compilation and clippy are blind to it: stale prose, doc
-links to renamed-away identifiers, decorative tests that pass
-trivially, mis-bounded generators that fake coverage, section
-headers that name the old thing, `expect()` panic strings that
-contradict the actual precondition, deferred properties from a
-previous plan's Verification table that never got written. Those
-are exactly the weeds humans don't notice on a fast skim.
-
-This rule applies to every agent — `feat:`, `debt:`, `fix:`, the
-review agents, `/watch-pr` auto-fix. A `feat:` agent that walks past
-a stale comment in the file it's editing plants a weed that sprouts
-three sprints later, when somebody trusts the comment and writes
-code based on it.
-
-## Repository conventions
+## Repository Rules
 
 - **Each commit must leave the repo in a state where `cargo test` passes.**
   Do not commit a library module without the tests that cover it in the
@@ -148,42 +111,161 @@ code based on it.
       └── server.rs   <-- Submodule of 'network'
   ```
 
-### Session notes
+## Be a Good Gardener
 
-`doc/notes/` is gitignored and holds the user's personal notes for the
-project. Agents may read from it for context but must not write to it
-unless explicitly asked.
+Weeds are weeds, regardless of who planted them. Whenever an agent
+encounters a violation of any rule in this file — stale comment
+referencing a renamed identifier, proptest generator bounded to
+dodge a wrap, `expect()` string that lies about its precondition,
+`#[ignore]`d test without a re-enablement plan, missing proptest
+the verification table mandated, etc. — it does not get to silently
+walk past because "I didn't write that."
 
-### Commit style
+**Minimum bar:**
 
-Conventional commits, present-tense imperative subject. Accepted prefixes:
-`plan`, `feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`. Scopes are
-allowed (e.g. `doc(skills):`, `fix(scripts):`).
+- **Flag it.** List the violation in the plan's `## Review` section:
+  `file:line — rule — one-sentence consequence`.
+- **Offer to fix the minor ones.** Local, single-file, no API
+  change, doesn't expand sprint scope: ask the user in chat before
+  merging. ("I noticed `foo/bar.rs:42` still says `old_name`; fold
+  the fix into this branch?") The user decides.
+- **Defer the rest with a tracking note.** If the fix is too big to
+  absorb in the current sprint, the `## Review` entry IS the plan:
+  name the cleanup specifically enough that the next plan branch
+  can pick it up.
 
-- `plan:` lands a new plan doc in `doc/plans/` — always the first
-  commit on a `plan/YYYY-MM-DD-NN` branch.
-- `feat:` and the rest cover the implementation that follows.
+**What does NOT need surfacing.** Drift CI already catches: `cargo
+fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+`gitleaks`, `scripts/check-pii.sh`. The gate is the safety net for
+those.
+
+**What MUST be surfaced.** Anything that lives below the CI gate
+because compilation and clippy are blind to it: stale prose, doc
+links to renamed-away identifiers, decorative tests that pass
+trivially, mis-bounded generators that fake coverage, section
+headers that name the old thing, `expect()` panic strings that
+contradict the actual precondition, deferred properties from a
+previous plan's Verification table that never got written. Those
+are exactly the weeds humans don't notice on a fast skim.
+
+This rule applies to every agent — `feat:`, `debt:`, `fix:`, the
+review agents, `/watch-pr` auto-fix. A `feat:` agent that walks past
+a stale comment in the file it's editing plants a weed that sprouts
+three sprints later, when somebody trusts the comment and writes
+code based on it.
+
+This repo is your garden, please treat it with love and care.
+
+## Test-Driven Development Workflow
+
+Every sprint follows this order. Naming is keyed to the plan filename:
+a plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
+`plan/YYYY-MM-DD-NN` and (if used) worktree `../<repo>.plan-YYYY-MM-DD-NN`.
+One slug, three places.
+
+1. **Pick the plan filename.** `ls doc/plans/plan-YYYY-MM-DD-*.md` to
+   find the next unused `NN` for today's date (zero-padded, starts at
+   `01`). No writes yet — main stays clean.
+2. **Ask the user: worktree or branch?** Worktree is mandatory if
+   another Claude instance is active in this repo; otherwise it's the
+   user's call. Then:
+   - worktree: `git worktree add ../<repo>.plan-YYYY-MM-DD-NN -b plan/YYYY-MM-DD-NN`, `cd` into it.
+   - branch: `git switch -c plan/YYYY-MM-DD-NN`.
+3. **Write the plan** to `doc/plans/plan-YYYY-MM-DD-NN.md` on that branch.
+   The plan's **Verification** table must list the property tests that
+   must pass for the sprint to ship (e.g., "message round-trips through
+   encode/decode", "parser never panics on arbitrary input"). Commit
+   as `plan: <one-line goal>` — this is the sprint-opener, always the
+   first commit on the branch. See the last section for plan formatting.
+4. Write proptest properties and test skeletons that compile but
+   trivially fail. Properties come first — they define the contract.
+5. Implement the module until all tests are green.
+6. Commit on the branch, when green.
+7. **Finalize the sprint docs.** In one commit:
+   - Append Deferred and Review sections to the plan document. If any
+     property tests were `#[ignore]`d during implementation, document
+     the reason and the re-enablement plan here.
+   - Create the review file at `$(scripts/review_path.sh)` (no
+     argument predicts the next PR number and zero-pads the
+     filename). Header is `# PR #<N> — <title>` followed by a
+     `## Summary` section containing the PR body. This section is
+     consumed verbatim by
+     `gh pr create --body-file <(scripts/extract_pr_body.sh N)`, so
+     write it as the PR description (what & why for a human
+     reviewer) — not a ship-report.
+
+   This must happen *before* the local review — the reviewer agent
+   reads the plan as context and should see the final version, and
+   `/sprint-review` aborts if the review file is missing its
+   `## Summary`. Commit as `doc: Finalize plan NN and PR description`.
+8. Run `/sprint-review` against the branch before merging.
+9. Rebase and land on main. First, on the feature branch:
+   `git fetch origin && git rebase origin/main`. Then fast-forward main:
+   - **Branch case**: `git checkout main && git merge --ff-only plan/YYYY-MM-DD-NN`.
+   - **Worktree case**: main is already checked out in the *primary*
+     worktree, so you can't `checkout main` here. `cd` back to the
+     primary and run `git merge --ff-only plan/YYYY-MM-DD-NN` there.
+     Step 10's `git worktree remove` then runs from the primary too.
+10. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
+    (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
+
+### Pre-Commit Hooks
+
+Two complementary layers guard every commit:
+
+**Layer 1 — Claude Code `PreToolUse`** (`.claude/settings.json`):
+fires on agent-invoked Bash calls matching `git commit*`. Catches
+issues during agent iteration without invoking git for real.
+Limitation: `PreToolUse` runs *before* the matched Bash call's body
+executes, so a chained command like `git add file && git commit -m
+"..."` sees an empty pre-add staged diff at hook time and slips
+through `check-pii.sh`. Use separate `git add` and `git commit`
+calls to keep this layer effective.
+
+**Layer 2 — Git `pre-commit`** (`.githooks/pre-commit`): fires at
+git's standard hook point (after staging, before commit object
+creation). Sees the actual staged content regardless of how the
+commit was invoked — chained Bash, terminal, IDE, anything. This is
+the unbypassable safety net.
+
+Activate Layer 2 on a fresh clone:
 
 ```
-plan: Widget-format parser, sprint goals and verification table
-feat: Add parser for widget format
-fix(codec): Handle timeout on reconnect
-test: Add round-trip property tests for codec
-doc: Append Sprint 2 completion report
-task: Add serde to core dependencies
-debt: Remove dead handshake branch
+git config core.hooksPath .githooks
 ```
 
-Keep subjects under 72 characters. Use the body for non-obvious decisions.
+Both layers run the same check chain, in order. Every step is
+blocking — the chain short-circuits on the first failure and the
+commit is aborted:
 
-## Two-tier review workflow
+1. `cargo fmt --all -- --check` — fmt drift aborts the commit. Run
+   `cargo fmt --all` to fix. (Was warn-only previously; flipped to
+   blocking after a real CI fmt failure that local tooling let
+   through. Keeping the fmt step blocking forces drift to be fixed
+   at commit time rather than papered over with a warning.)
+2. `scripts/check-pii.sh` — grep the staged diff for absolute
+   user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
+   private-key headers, and common API-token shapes. Fail fast on
+   any match. Allow-list exceptions go in `.pii-allow`.
+3. `cargo test --workspace` — all tests must pass.
+4. `cargo clippy --all-targets -- -D warnings` — matches CI.
+
+This is the automated quality gate; `/sprint-review` is the manual
+one. Bypass with `--no-verify` only when explicitly authorized.
+
+CI adds a `gitleaks` job (`.github/workflows/ci.yml`) that scans the
+full history on every PR as defense-in-depth against anything that
+bypasses both local hooks (e.g. `git commit --no-verify`, or a
+clone where `core.hooksPath` was never set).
+
+## Code Review Workflow
 
 `doc/workflow.md` has mermaid state diagrams for the review-round
 lifecycle and the `/watch-pr` loop — useful when debugging an
 unexpected situation (stuck fix commit, loop that won't quit). The
 prose below is authoritative; the diagrams are derived views.
 
-### Tier 1 — Local review (pre-push)
+### Tier 1 — Local Review (pre-push)
 
 The coding agent makes atomic commits as it works. Each commit must pass
 `cargo test` and `cargo clippy` (enforced by the pre-commit hook in
@@ -217,7 +299,7 @@ new path if needed.
 If must-fix items exist, resolve them before pushing. If the review
 is clean, push and open the PR with `--body-file` as above.
 
-### Tier 2 — GitHub review (post-push)
+### Tier 2 — GitHub Review (post-push)
 
 Once pushed, CI runs `cargo test --workspace` and
 `cargo clippy --all-targets -- -D warnings` (see
@@ -273,7 +355,7 @@ The GitHub review catches anything that slipped through and validates in
 the CI environment. Joining them into a single file per PR preserves the
 conversational flow and keeps the review record in one place.
 
-### Automated poll loop (optional)
+### PR Polling (optional)
 
 For PRs where you don't want to manually ping "check the replies", pair
 `/watch-pr <N>` with `/loop`:
@@ -301,109 +383,29 @@ branch to `gh_review` so CI re-runs and the reviewer sees replies
 attached to the right tip — that's normal mid-PR motion, not a risk
 worth gating on.
 
-## TDD workflow
+### Commit Style
 
-Every sprint follows this order. Naming is keyed to the plan filename:
-a plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
-`plan/YYYY-MM-DD-NN` and (if used) worktree `../<repo>.plan-YYYY-MM-DD-NN`.
-One slug, three places.
+Conventional commits, present-tense imperative subject. Accepted prefixes:
+`plan`, `feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`. Scopes are
+allowed (e.g. `doc(skills):`, `fix(scripts):`).
 
-1. **Pick the plan filename.** `ls doc/plans/plan-YYYY-MM-DD-*.md` to
-   find the next unused `NN` for today's date (zero-padded, starts at
-   `01`). No writes yet — main stays clean.
-2. **Ask the user: worktree or branch?** Worktree is mandatory if
-   another Claude instance is active in this repo; otherwise it's the
-   user's call. Then:
-   - worktree: `git worktree add ../<repo>.plan-YYYY-MM-DD-NN -b plan/YYYY-MM-DD-NN`, `cd` into it.
-   - branch: `git switch -c plan/YYYY-MM-DD-NN`.
-3. **Write the plan** to `doc/plans/plan-YYYY-MM-DD-NN.md` on that branch.
-   The plan's **Verification** table must list the property tests that
-   must pass for the sprint to ship (e.g., "message round-trips through
-   encode/decode", "parser never panics on arbitrary input"). Commit
-   as `plan: <one-line goal>` — this is the sprint-opener, always the
-   first commit on the branch.
-4. Write proptest properties and test skeletons that compile but
-   trivially fail. Properties come first — they define the contract.
-5. Implement the module until all tests are green.
-6. Commit on the branch, when green.
-7. **Finalize the sprint docs.** In one commit:
-   - Append Deferred and Review sections to the plan document. If any
-     property tests were `#[ignore]`d during implementation, document
-     the reason and the re-enablement plan here.
-   - Create the review file at `$(scripts/review_path.sh)` (no
-     argument predicts the next PR number and zero-pads the
-     filename). Header is `# PR #<N> — <title>` followed by a
-     `## Summary` section containing the PR body. This section is
-     consumed verbatim by
-     `gh pr create --body-file <(scripts/extract_pr_body.sh N)`, so
-     write it as the PR description (what & why for a human
-     reviewer) — not a ship-report.
-
-   This must happen *before* the local review — the reviewer agent
-   reads the plan as context and should see the final version, and
-   `/sprint-review` aborts if the review file is missing its
-   `## Summary`. Commit as `doc: Finalize plan NN and PR description`.
-8. Run `/sprint-review` against the branch before merging.
-9. Rebase and land on main. First, on the feature branch:
-   `git fetch origin && git rebase origin/main`. Then fast-forward main:
-   - **Branch case**: `git checkout main && git merge --ff-only plan/YYYY-MM-DD-NN`.
-   - **Worktree case**: main is already checked out in the *primary*
-     worktree, so you can't `checkout main` here. `cd` back to the
-     primary and run `git merge --ff-only plan/YYYY-MM-DD-NN` there.
-     Step 10's `git worktree remove` then runs from the primary too.
-10. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
-    (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
-
-### Pre-commit hooks
-
-Two complementary layers guard every commit:
-
-**Layer 1 — Claude Code `PreToolUse`** (`.claude/settings.json`):
-fires on agent-invoked Bash calls matching `git commit*`. Catches
-issues during agent iteration without invoking git for real.
-Limitation: `PreToolUse` runs *before* the matched Bash call's body
-executes, so a chained command like `git add file && git commit -m
-"..."` sees an empty pre-add staged diff at hook time and slips
-through `check-pii.sh`. Use separate `git add` and `git commit`
-calls to keep this layer effective.
-
-**Layer 2 — Git `pre-commit`** (`.githooks/pre-commit`): fires at
-git's standard hook point (after staging, before commit object
-creation). Sees the actual staged content regardless of how the
-commit was invoked — chained Bash, terminal, IDE, anything. This is
-the unbypassable safety net.
-
-Activate Layer 2 on a fresh clone:
+- `plan:` lands a new plan doc in `doc/plans/` — always the first
+  commit on a `plan/YYYY-MM-DD-NN` branch.
+- `feat:` and the rest cover the implementation that follows.
 
 ```
-git config core.hooksPath .githooks
+plan: Widget-format parser, sprint goals and verification table
+feat: Add parser for widget format
+fix(codec): Handle timeout on reconnect
+test: Add round-trip property tests for codec
+doc: Append Sprint 2 completion report
+task: Add serde to core dependencies
+debt: Remove dead handshake branch
 ```
 
-Both layers run the same check chain, in order. Every step is
-blocking — the chain short-circuits on the first failure and the
-commit is aborted:
+Keep subjects under 72 characters. Use the body for non-obvious decisions.
 
-1. `cargo fmt --all -- --check` — fmt drift aborts the commit. Run
-   `cargo fmt --all` to fix. (Was warn-only previously; flipped to
-   blocking after a real CI fmt failure that local tooling let
-   through. Keeping the fmt step blocking forces drift to be fixed
-   at commit time rather than papered over with a warning.)
-2. `scripts/check-pii.sh` — grep the staged diff for absolute
-   user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
-   private-key headers, and common API-token shapes. Fail fast on
-   any match. Allow-list exceptions go in `.pii-allow`.
-3. `cargo test --workspace` — all tests must pass.
-4. `cargo clippy --all-targets -- -D warnings` — matches CI.
-
-This is the automated quality gate; `/sprint-review` is the manual
-one. Bypass with `--no-verify` only when explicitly authorized.
-
-CI adds a `gitleaks` job (`.github/workflows/ci.yml`) that scans the
-full history on every PR as defense-in-depth against anything that
-bypasses both local hooks (e.g. `git commit --no-verify`, or a
-clone where `core.hooksPath` was never set).
-
-## Sprint plan format
+## Sprint Plan Format
 
 ```markdown
 # Plan NN — Title
