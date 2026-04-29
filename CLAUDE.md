@@ -333,11 +333,15 @@ Activate Layer 2 on a fresh clone:
 git config core.hooksPath .githooks
 ```
 
-Both layers run the same check chain, in order:
+Both layers run the same check chain, in order. Every step is
+blocking — the chain short-circuits on the first failure and the
+commit is aborted:
 
-1. `cargo fmt --all -- --check` — **warn-only**. Prints a diff if any
-   files need formatting but does not block the commit. CI mirrors
-   this as a `continue-on-error` step. Run `cargo fmt --all` to fix.
+1. `cargo fmt --all -- --check` — fmt drift aborts the commit. Run
+   `cargo fmt --all` to fix. (Was warn-only previously; flipped to
+   blocking after a real CI fmt failure that local tooling let
+   through. Keeping the fmt step blocking forces drift to be fixed
+   at commit time rather than papered over with a warning.)
 2. `scripts/check-pii.sh` — grep the staged diff for absolute
    user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
    private-key headers, and common API-token shapes. Fail fast on
@@ -345,9 +349,8 @@ Both layers run the same check chain, in order:
 3. `cargo test --workspace` — all tests must pass.
 4. `cargo clippy --all-targets -- -D warnings` — matches CI.
 
-If a blocking step fails, the commit is blocked. This is the
-automated quality gate; `/sprint-review` is the manual one. Bypass
-with `--no-verify` only when explicitly authorized.
+This is the automated quality gate; `/sprint-review` is the manual
+one. Bypass with `--no-verify` only when explicitly authorized.
 
 CI adds a `gitleaks` job (`.github/workflows/ci.yml`) that scans the
 full history on every PR as defense-in-depth against anything that

@@ -34,12 +34,9 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
-# 1. cargo fmt — warn-only, matches the documented Claude Code hook
-#    semantics. Run `cargo fmt --all` to fix any drift the warning
-#    surfaces. Flip to blocking by removing the `|| { … }` wrapper.
-if ! cargo fmt --all -- --check >/dev/null 2>&1; then
-  echo "[warn] cargo fmt found formatting differences (non-blocking; run: cargo fmt --all)" >&2
-fi
+# 1. cargo fmt — blocking. Drift aborts the commit. Run
+#    `cargo fmt --all` to fix.
+cargo fmt --all -- --check
 
 # 2. PII / secret scan — blocking.
 scripts/check-pii.sh

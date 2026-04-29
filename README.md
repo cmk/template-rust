@@ -17,9 +17,9 @@ is the human-facing tour.
   (`.claude/settings.json`) gates agent-invoked `git commit*` Bash
   calls, plus a git-side `pre-commit` script (`.githooks/pre-commit`)
   that catches commits from any path (chained Bash, terminal, IDE).
-  Both run `cargo fmt --check` (warn-only), a PII scan, `cargo test`,
-  and `cargo clippy`. Activate the git-side layer on a fresh clone:
-  `git config core.hooksPath .githooks`.
+  Both run `cargo fmt --check`, a PII scan, `cargo test`, and
+  `cargo clippy` — every step blocking. Activate the git-side layer
+  on a fresh clone: `git config core.hooksPath .githooks`.
 - **CI jobs**: `test` (test + clippy + fmt warn), `deny` (cargo-deny
   licenses/advisories/sources), `secrets` (gitleaks on full history).
 - **Two-tier review**: `/sprint-review` runs an independent reviewer
