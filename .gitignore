@@ -30,3 +30,4 @@ doc/notes/
 *_rsa.pub
 *.p12
 *.pfx
+.claude/scheduled_tasks.lock
