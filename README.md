@@ -13,9 +13,13 @@ is the human-facing tour.
 - **Pinned toolchain** via `rust-toolchain.toml` (Rust 1.85 + clippy +
   rustfmt). CI installs the same channel via
   `dtolnay/rust-toolchain@1.85.0`.
-- **Pre-commit hook** (`.claude/settings.json`) runs `cargo fmt --check`
-  (warn-only), a PII scan, `cargo test`, and `cargo clippy`. Blocks on
-  any real failure; `fmt` drift is a nag, not a blocker.
+- **Two-layer pre-commit hook**: a Claude Code `PreToolUse` hook
+  (`.claude/settings.json`) gates agent-invoked `git commit*` Bash
+  calls, plus a git-side `pre-commit` script (`.githooks/pre-commit`)
+  that catches commits from any path (chained Bash, terminal, IDE).
+  Both run `cargo fmt --check` (warn-only), a PII scan, `cargo test`,
+  and `cargo clippy`. Activate the git-side layer on a fresh clone:
+  `git config core.hooksPath .githooks`.
 - **CI jobs**: `test` (test + clippy + fmt warn), `deny` (cargo-deny
   licenses/advisories/sources), `secrets` (gitleaks on full history).
 - **Two-tier review**: `/sprint-review` runs an independent reviewer
@@ -107,6 +111,10 @@ scripts/
    - Set `.github/CODEOWNERS` to your GitHub handle (currently `@cmk`).
    - Clear `doc/reviews/` of everything except `review-00000.md`
      (the protected sentinel; see its contents for why).
+   - Activate the git-side pre-commit hook:
+     `git config core.hooksPath .githooks`. (Layer 1 in
+     `.claude/settings.json` works without any setup; this enables
+     Layer 2, the unbypassable safety net at commit time.)
 2. Read [CLAUDE.md](CLAUDE.md) top-to-bottom once — it's the source of
    truth for the TDD + review workflow. This README is a derived view.
 3. Start a sprint: pick a plan number, ask worktree-or-branch, write
