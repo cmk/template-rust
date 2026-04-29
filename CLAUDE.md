@@ -294,27 +294,51 @@ One slug, three places.
 10. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
     (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
 
-### Pre-commit hook
+### Pre-commit hooks
 
-A Claude Code hook in `.claude/settings.json` runs these checks before
-every `git commit` tool call:
+Two complementary layers guard every commit:
+
+**Layer 1 — Claude Code `PreToolUse`** (`.claude/settings.json`):
+fires on agent-invoked Bash calls matching `git commit*`. Catches
+issues during agent iteration without invoking git for real.
+Limitation: `PreToolUse` runs *before* the matched Bash call's body
+executes, so a chained command like `git add file && git commit -m
+"..."` sees an empty pre-add staged diff at hook time and slips
+through `check-pii.sh`. Use separate `git add` and `git commit`
+calls to keep this layer effective.
+
+**Layer 2 — Git `pre-commit`** (`.githooks/pre-commit`): fires at
+git's standard hook point (after staging, before commit object
+creation). Sees the actual staged content regardless of how the
+commit was invoked — chained Bash, terminal, IDE, anything. This is
+the unbypassable safety net.
+
+Activate Layer 2 on a fresh clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+Both layers run the same check chain, in order:
 
 1. `cargo fmt --all -- --check` — **warn-only**. Prints a diff if any
-   files need formatting but does not block the commit. CI mirrors this
-   as a `continue-on-error` step. Run `cargo fmt --all` to fix.
-2. `scripts/check-pii.sh` — grep the staged diff for absolute user-home
-   paths (`/Users/...` on macOS, `/home/...` on Linux), private-key
-   headers, and common API-token shapes. Fail fast on any match.
-   Allow-list exceptions go in `.pii-allow`.
+   files need formatting but does not block the commit. CI mirrors
+   this as a `continue-on-error` step. Run `cargo fmt --all` to fix.
+2. `scripts/check-pii.sh` — grep the staged diff for absolute
+   user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
+   private-key headers, and common API-token shapes. Fail fast on
+   any match. Allow-list exceptions go in `.pii-allow`.
 3. `cargo test --workspace` — all tests must pass.
 4. `cargo clippy --all-targets -- -D warnings` — matches CI.
 
-If a blocking step fails, the commit is blocked. This is the automated
-quality gate; `/sprint-review` is the manual one.
+If a blocking step fails, the commit is blocked. This is the
+automated quality gate; `/sprint-review` is the manual one. Bypass
+with `--no-verify` only when explicitly authorized.
 
 CI adds a `gitleaks` job (`.github/workflows/ci.yml`) that scans the
 full history on every PR as defense-in-depth against anything that
-bypasses the local hook (e.g. `git commit --no-verify`).
+bypasses both local hooks (e.g. `git commit --no-verify`, or a
+clone where `core.hooksPath` was never set).
 
 ## Sprint plan format
 
