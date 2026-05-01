@@ -2,6 +2,10 @@
 # Reports the repo's best-effort FSM state without mutating git state.
 set -euo pipefail
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(git -C "$script_dir/.." rev-parse --show-toplevel)
+cd "$repo_root"
+
 branch=$(git branch --show-current)
 status=$(git status --porcelain)
 base_commits=$(git rev-list --count origin/main..HEAD 2>/dev/null || printf 'unknown')
