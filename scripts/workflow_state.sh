@@ -9,7 +9,10 @@ cd "$repo_root"
 branch=$(git branch --show-current)
 status=$(git status --porcelain)
 base_commits=$(git rev-list --count origin/main..HEAD 2>/dev/null || printf 'unknown')
-pr_number=$(gh pr view --json number --jq .number 2>/dev/null || true)
+pr_number=''
+if command -v gh >/dev/null 2>&1; then
+  pr_number=$(gh pr view --json number --jq .number 2>/dev/null || true)
+fi
 
 ahead='unknown'
 behind='unknown'
@@ -22,7 +25,7 @@ review_file=''
 if [ -n "$pr_number" ]; then
   review_file=$(scripts/review_path.sh "$pr_number")
 elif [ -n "${WORKFLOW_REVIEW_FILE:-}" ]; then
-  review_file=$WORKFLOW_REVIEW_FILE
+  review_file="$WORKFLOW_REVIEW_FILE"
 fi
 
 review_summary='unknown'
@@ -47,10 +50,12 @@ fi
 
 state='unknown'
 if [ "$branch" = 'main' ]; then
-  if [ -z "$status" ]; then
-    state='main_clean'
-  else
+  if [ -n "$status" ]; then
     state='main_dirty'
+  elif [ "$ahead" != 'unknown' ] && [ "$ahead" -gt 0 ]; then
+    state='main_unpushed'
+  else
+    state='main_clean'
   fi
 elif [ -n "$status" ]; then
   state='working_tree_dirty'
@@ -58,6 +63,8 @@ elif [ "$ahead" != 'unknown' ] && [ "$ahead" -gt 0 ]; then
   state='round_unpushed'
 elif [ -n "$pr_number" ]; then
   state='gh_review'
+elif [ "$ahead" = '0' ] && [ "$behind" = '0' ] && [ "$local_review" = 'present' ]; then
+  state='pushed'
 elif [ "$local_review" = 'present' ]; then
   state='local_reviewed'
 elif [ "$review_summary" = 'present' ]; then
