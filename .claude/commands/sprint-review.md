@@ -5,8 +5,9 @@ argument-hint: (no args)
 
 # Sprint Review — Tier 1 (Local)
 
-You are orchestrating a **local, pre-push** code review. This is Tier 1 of
-a two-tier system:
+You are orchestrating the Claude Code implementation of the
+`plan_finalized → local_reviewed` FSM transition: a **local, pre-push**
+code review. This is Tier 1 of a two-tier system:
 
 - **Tier 1 (this command):** Independent agent reviews `origin/main...HEAD` locally.
   Gate before pushing.
@@ -22,7 +23,7 @@ the user push if the review passes.
 
 ## Step 0: Autosquash any pending fixups
 
-Per CLAUDE.md, CI-repair commits are made as `--fixup`s and must be
+Per AGENTS.md, CI-repair commits are made as `--fixup`s and must be
 collapsed before review/push. Refresh the remote-tracking ref first so
 the check isn't against a stale base, then scan for fixups:
 
@@ -88,7 +89,7 @@ that commit, not as a post-hoc fabrication by this command.
 
 Read these files and include them in the reviewer prompt:
 
-- `CLAUDE.md` — repo conventions, workspace layout, TDD workflow, commit
+- `AGENTS.md` — repo conventions, workspace layout, TDD workflow, commit
   style, feature-gate conventions
 - `doc/reviews/review-calibration.md` — if it exists, include as few-shot
   examples. If absent, skip (the reviewer prompt has built-in guidance).
@@ -102,7 +103,7 @@ The prompt must be self-contained. Include:
 
 1. The full diff
 2. The commit log
-3. The repo conventions from CLAUDE.md
+3. The repo conventions from AGENTS.md
 4. The plan text (if found), clearly labeled as optional context
 5. Calibration examples from `doc/reviews/review-calibration.md` (if found)
 6. The review instructions (below)
@@ -148,7 +149,7 @@ assume.
 
 ## Repo conventions
 
-{CLAUDE.md contents}
+{AGENTS.md contents}
 
 {IF plan exists:}
 ## Sprint plan (optional context)

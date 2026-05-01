@@ -1,7 +1,7 @@
 # Workflow State Diagrams
 
 Visual reference for the review-round and `/watch-pr` workflows defined
-in `../CLAUDE.md`. The prose specs there are authoritative; these
+in `../AGENTS.md`. The prose specs there are authoritative; these
 diagrams exist to make the state transitions easier to eyeball when
 debugging an unexpected situation — a stuck fix commit, a loop that
 won't quit, an ordering question about when to run which command.
@@ -22,7 +22,7 @@ stateDiagram-v2
     on_branch --> plan_committed: write plan + `plan:` commit
     plan_committed --> impl_green: TDD loop (tests + feat/fix commits)
     impl_green --> plan_finalized: append Deferred + Review, draft PR body
-    plan_finalized --> local_reviewed: /sprint-review
+    plan_finalized --> local_reviewed: /sprint-review or scripts/local_review.sh
     local_reviewed --> impl_green: must-fix items surfaced
     local_reviewed --> pushed: clean, git push
     pushed --> gh_review: CI runs + reviewers post
@@ -55,7 +55,9 @@ stateDiagram-v2
   --oneline` must be empty.)
 - `local_reviewed → impl_green` is the must-fix loop-back. The fix
   commits stay on the same branch; re-append any new Deferred/Review
-  notes, then `/sprint-review` re-runs against the new tip.
+  notes, then re-run the local review transition (`/sprint-review` for
+  Claude Code, `scripts/local_review.sh` for Codex/shell) against the
+  new tip.
 - `plan_finalized` sits deliberately *before* `local_reviewed`: the
   reviewer reads the plan as context and should see its final form,
   including what was intentionally cut and why. It's also when
@@ -148,7 +150,7 @@ stateDiagram-v2
   loop (`/loop 5m /watch-pr <N>`) has no backoff and no quit — it
   runs until the user kills it.
 
-## When a diagram disagrees with CLAUDE.md
+## When a diagram disagrees with AGENTS.md
 
-CLAUDE.md wins. These are derived views; re-draw them when the
+AGENTS.md wins. These are derived views; re-draw them when the
 workflow prose changes. A lagging diagram is worse than no diagram.

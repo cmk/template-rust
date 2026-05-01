@@ -2,7 +2,7 @@
 # Extracts the PR body from doc/reviews/review-NNNNN.md.
 #
 # The review file's `## Summary` section is the single source of truth
-# for the PR body (see CLAUDE.md "Tier 1 — Local review"). This script
+# for the PR body (see AGENTS.md "Tier 1 — Local review"). This script
 # extracts that section so `gh pr create --body-file` can feed it
 # straight to GitHub:
 #
