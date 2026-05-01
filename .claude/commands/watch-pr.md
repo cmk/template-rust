@@ -102,6 +102,13 @@ new top-level thread, classify it into exactly one bucket:
 wrong code; a miscategorized ask only delays a round by one loop tick
 until the user resolves it.
 
+Track two counters for the commit step:
+
+```
+auto_fix_count=<number of auto-fix threads>
+reply_count=<number of auto-fix + push-back + defer threads that will receive replies>
+```
+
 ## Step 3: Apply the auto-fix items (no commit yet)
 
 For each **auto-fix** item:
