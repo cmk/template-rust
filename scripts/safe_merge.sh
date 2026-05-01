@@ -91,10 +91,11 @@ $ahead
 Per doc/workflow.md, the merge transition starts from gh_review (push
 complete), not round_unpushed. Push first, then re-run:
 
-    git push origin $head_ref
-    $0 $*
-
 EOF
+  printf '    git push origin %q\n' "$head_ref" >&2
+  printf '    %q' "$0" >&2
+  printf ' %q' "$@" >&2
+  printf '\n\n' >&2
   exit 1
 fi
 

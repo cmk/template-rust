@@ -26,7 +26,7 @@ stateDiagram-v2
     local_reviewed --> impl_green: must-fix items surfaced
     local_reviewed --> pushed: clean, git push
     pushed --> gh_review: CI runs + reviewers post
-    gh_review --> items_pulled: /pull-reviews
+    gh_review --> items_pulled: /pull-reviews (scripts/pull_reviews.py)
     items_pulled --> round_unpushed: edit working tree + /reply-reviews (post + mirror + atomic commit)
     round_unpushed --> gh_review: git push (mandatory before merge)
     gh_review --> merged: no more items, scripts/safe_merge.sh (after push check)
