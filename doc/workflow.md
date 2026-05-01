@@ -29,7 +29,7 @@ stateDiagram-v2
     gh_review --> items_pulled: /pull-reviews
     items_pulled --> round_unpushed: edit working tree + /reply-reviews (post + mirror + atomic commit)
     round_unpushed --> gh_review: git push (mandatory before merge)
-    gh_review --> merged: no more items, scripts/safe_merge.sh (rebase + ff)
+    gh_review --> merged: no more items, scripts/safe_merge.sh (after push check)
     merged --> [*]
 ```
 

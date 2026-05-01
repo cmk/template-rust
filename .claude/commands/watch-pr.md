@@ -148,9 +148,14 @@ if git diff --cached --quiet; then
     :
 else
     # Pick prefix based on staged content:
-    #   fix:  any code edit (most common when there are auto-fixes)
+    #   fix:  any staged change outside doc/reviews/*.md
     #   doc:  only doc/reviews/<file>.md changed (replies-only round)
-    git commit -m "fix: Address review feedback on PR #<N>"
+    if git diff --cached --name-only | grep -Eqv '^doc/reviews/.*\.md$'; then
+        commit_prefix=fix
+    else
+        commit_prefix=doc
+    fi
+    git commit -m "$commit_prefix: Address review feedback on PR #<N>"
 fi
 ```
 

@@ -17,7 +17,7 @@
 # tracking ref. Re-run after `git push`.
 #
 # Usage:
-#   scripts/safe_merge.sh <gh-pr-merge-args...>
+#   scripts/safe_merge.sh [<gh-pr-merge-args...>]
 #
 # Examples:
 #   scripts/safe_merge.sh 17                      # interactive
@@ -28,15 +28,15 @@
 # guard passes.
 set -euo pipefail
 
-if [ $# -lt 1 ]; then
+if [ $# -eq 1 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
   cat >&2 <<'USAGE'
-usage: safe_merge.sh <gh-pr-merge-args...>
+usage: safe_merge.sh [<gh-pr-merge-args...>]
 
 Resolves the PR's head branch via `gh pr view`, then refuses to run
 if that local branch is ahead of its remote tracking ref. All
 arguments are forwarded to `gh pr merge` once the guard passes.
 USAGE
-  exit 64
+  exit 0
 fi
 
 # Resolve the PR's head ref. `gh pr view` accepts the same first-arg
