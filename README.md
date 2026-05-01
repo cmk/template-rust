@@ -5,7 +5,7 @@
 A Rust workspace template wired for agent-assisted development. Pinned
 toolchain, TDD workflow, a two-tier local + GitHub review loop, and an
 optional poll-and-fix automation for review rounds. The spec for how
-agents work in this repo lives in [CLAUDE.md](CLAUDE.md); this README
+agents work in this repo lives in [AGENTS.md](AGENTS.md); this README
 is the human-facing tour.
 
 ## What's in the box
@@ -22,9 +22,10 @@ is the human-facing tour.
   on a fresh clone: `git config core.hooksPath .githooks`.
 - **CI jobs**: `test` (test + clippy + fmt warn), `deny` (cargo-deny
   licenses/advisories/sources), `secrets` (gitleaks on full history).
-- **Two-tier review**: `/sprint-review` runs an independent reviewer
-  agent locally before push; Claude Code Action and/or Copilot pick it
-  up on the PR after push. Findings from both rounds land in one
+- **Two-tier review**: `/sprint-review` for Claude Code or
+  `scripts/local_review.sh` for Codex runs an independent local review
+  before push; Claude Code Action and/or Copilot pick it up on the PR
+  after push. Findings from both rounds land in one
   `doc/reviews/review-NNNNN.md` file per PR.
 - **Finalize-a-round slash command**: `/reply-reviews` posts replies,
   mirrors them into the review doc, and folds the doc into the
@@ -33,7 +34,7 @@ is the human-facing tour.
 - **Automated poll loop**: `/loop /watch-pr <N>` watches a PR for
   new reviewer activity, auto-fixes items whose intent is
   unambiguous (one file, <20 lines, no API removal), runs the
-  `/reply-reviews` flow, and **stops before push**. Dynamic-mode
+  `/reply-reviews` flow, and pushes the round commit. Dynamic-mode
   backoff: 5/5/5/10/10 min, auto-quit on the 6th quiet tick.
 - **PR-number prediction** (`scripts/next_pr_number.sh`): review
   files are named `review-NNNNN.md` from the start, before the PR is
@@ -48,30 +49,30 @@ stateDiagram-v2
     on_branch --> plan_committed: write plan + `plan:` commit
     plan_committed --> impl_green: TDD loop (tests + feat/fix commits)
     impl_green --> plan_finalized: append Deferred + Review, draft PR body
-    plan_finalized --> local_reviewed: /sprint-review
+    plan_finalized --> local_reviewed: /sprint-review or scripts/local_review.sh
     local_reviewed --> impl_green: must-fix items surfaced
     local_reviewed --> pushed: clean, git push
     pushed --> gh_review: CI runs + reviewers post
     gh_review --> items_pulled: /pull-reviews
-    items_pulled --> fix_unpushed: address items, local fix commit
-    fix_unpushed --> replies_amended: /reply-reviews (post + mirror + amend)
-    replies_amended --> gh_review: git push (code + replies + doc in one trip)
+    items_pulled --> round_unpushed: edit working tree + /reply-reviews
+    round_unpushed --> gh_review: git push (code + replies + doc in one trip)
     gh_review --> merged: no more items, rebase + ff to main
     merged --> [*]
 ```
 
-`fix_unpushed` is the load-bearing state — `/reply-reviews` only runs
-there, so the reply mirror never ends up stranded in the working tree.
+`round_unpushed` is the load-bearing state — one atomic commit contains
+both the code fix and the mirrored reply doc, and it must be pushed
+before merge.
 
 Two reasons for this ordering:
 
-1. **One CI run per round.** Amending into the fix commit means code +
-   replies + mirror ride a single push. The alternative — separate
+1. **One CI run per round.** Bundling the fix, replies, and mirror into
+   one commit means they ride a single push. The alternative — separate
    commits for code and mirror — doubles the CI load per round.
-2. **Replies stay post-hoc to verified code.** The fix is committed and
-   its tests green *before* you reply on GitHub. Replying first would
-   publish commitments to the PR before the code is in final form, and
-   GitHub comments are permanent — editable, but not retractable.
+2. **Replies and code stay atomic.** Replies are posted only after the
+   fix edits exist locally, then the mirrored review doc and code land
+   in one commit. That keeps the GitHub thread and branch history from
+   drifting apart.
 
 The `/watch-pr` loop has its own state diagram; both live in
 [doc/workflow.md](doc/workflow.md).
@@ -80,6 +81,8 @@ The `/watch-pr` loop has its own state diagram; both live in
 
 ```
 Cargo.toml              — workspace root
+AGENTS.md               — canonical agent workflow and repo instructions
+CLAUDE.md               — compatibility symlink to AGENTS.md
 rust-toolchain.toml     — pinned Rust channel
 rustfmt.toml            — edition 2024
 deny.toml               — cargo-deny policy
@@ -96,9 +99,11 @@ scripts/
   next_pr_number.sh     — predicts the next PR number via gh api
   pull_reviews.py       — fetches PR comments into review-NNNNN.md
   reply_review.py       — posts a reply to a review thread
+  workflow_state.sh     — reports the inferred workflow FSM state
+  local_review.sh       — Codex local-review transition
   autosquash.sh         — collapses --fixup commits before push
 .claude/
-  commands/             — slash commands (/sprint-review, /watch-pr, …)
+  commands/             — Claude Code slash commands (/sprint-review, /watch-pr, …)
   settings.json         — pre-commit hook
   settings.local.json   — per-user permission allow/deny list
 ```
@@ -115,7 +120,7 @@ scripts/
      `git config core.hooksPath .githooks`. (Layer 1 in
      `.claude/settings.json` works without any setup; this enables
      Layer 2, the unbypassable safety net at commit time.)
-2. Read [CLAUDE.md](CLAUDE.md) top-to-bottom once — it's the source of
+2. Read [AGENTS.md](AGENTS.md) top-to-bottom once — it's the source of
    truth for the TDD + review workflow. This README is a derived view.
 3. Start a sprint: pick a plan number, ask worktree-or-branch, write
    the plan, commit as `plan: <goal>`. The workflow takes over from
