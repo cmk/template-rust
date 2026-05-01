@@ -286,10 +286,9 @@ blocking — the chain short-circuits on the first failure and the
 commit is aborted:
 
 1. `cargo fmt --all -- --check` — fmt drift aborts the commit. Run
-   `cargo fmt --all` to fix. (Was warn-only previously; flipped to
-   blocking after a real CI fmt failure that local tooling let
-   through. Keeping the fmt step blocking forces drift to be fixed
-   at commit time rather than papered over with a warning.)
+   `cargo fmt --all` to fix. CI still runs fmt in warn-only mode, so
+   the local hook is the blocking gate that prevents drift from being
+   papered over with a warning.
 2. `scripts/check-pii.sh` — grep the staged diff for absolute
    user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
    private-key headers, and common API-token shapes. Fail fast on

@@ -2,6 +2,10 @@
 # Codex implementation of the plan_finalized -> local_reviewed FSM transition.
 set -euo pipefail
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(git -C "$script_dir/.." rev-parse --show-toplevel)
+cd "$repo_root"
+
 if [ "${1:-}" = "--check" ]; then
   command -v codex >/dev/null
   codex review --help >/dev/null
