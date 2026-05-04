@@ -139,7 +139,7 @@ for i in "${!crate_names[@]}"; do
                     printf '    %s\n' "$line_body" >&2
                     FAIL=1
                 done < <(emit_import_tops "$line_body")
-            done < <(grep -nE '^(pub([[:space:]]*\([^)]*\))?[[:space:]]+)?use[[:space:]]+(crate|project|project_core)::' "$file" || true)
+            done < <(grep -nE '^[[:space:]]*(pub([[:space:]]*\([^)]*\))?[[:space:]]+)?use[[:space:]]+(crate|project|project_core)::' "$file" || true)
         done < <(files_for_layer "$root" "$layer")
     done
 done

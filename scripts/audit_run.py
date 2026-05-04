@@ -18,8 +18,8 @@ Each audit prompt is a markdown file with a YAML front-matter block:
 
 Subcommands:
   list                 List configured audits.
-  run <name>           Run one audit unconditionally (skips early-exit
-                       gate). Useful for manual / dev runs.
+  run <name>           Run one audit when relevant files changed; use
+                       --force to skip the early-exit gate.
   cron-tick            Decide which audits should run today and run
                        them. Honors per-audit `day`, `cadence`, and
                        the early-exit gate (audit_report.sh). Intended
@@ -96,7 +96,7 @@ class Audit:
 
 
 def parse_audit(path: Path) -> Audit:
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
         raise ValueError(f"{path}: missing YAML front-matter")
     end = text.find("\n---\n", 4)
@@ -254,7 +254,7 @@ def append_to_log(audit: Audit, output: str, today: dt.date) -> bool:
 
     AUDITS_DIR.mkdir(parents=True, exist_ok=True)
     header_exists = LOG_FILE.exists()
-    with LOG_FILE.open("a") as f:
+    with LOG_FILE.open("a", encoding="utf-8") as f:
         if not header_exists:
             f.write("# Audit log\n\n")
             f.write(

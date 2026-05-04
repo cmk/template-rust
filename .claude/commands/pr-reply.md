@@ -1,5 +1,5 @@
 ---
-description: Finalize a PR review round before push. Apply fix edits to the working tree first, then run this command — it posts replies, mirrors them back into review-NNNNN.md via pr_report.py reviews, and produces ONE atomic commit containing both the code fix and the mirrored reply doc. One push delivers the whole round. Refuses to run if the branch already has unpushed commits (which would create a bisect-bisecting two-commit round).
+description: Finalize a PR review round before push. Apply fix edits to the working tree first, then run this command — it posts replies, mirrors them back into review-NNNNN.md via scripts/pr_report.py reviews, and produces ONE atomic commit containing both the code fix and the mirrored reply doc. One push delivers the whole round. Refuses to run if the branch already has unpushed commits (which would create a split two-commit review round).
 argument-hint: <pr-number>
 ---
 
