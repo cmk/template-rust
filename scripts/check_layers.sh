@@ -67,6 +67,41 @@ files_for_layer() {
     [[ -d "${root}/${layer}" ]] && find "${root}/${layer}" -type f -name '*.rs' -print
 }
 
+emit_import_hits() {
+    local file="$1"
+    local line line_num=0 start_line=0 collecting=0 block=""
+    local use_re='^[[:space:]]*(pub([[:space:]]*\([^)]*\))?[[:space:]]+)?use[[:space:]]+(crate|project|project_core)::'
+    local grouped_re='use[[:space:]]+(crate|project|project_core)::\{'
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        ((line_num += 1))
+        if (( collecting )); then
+            block+=" $line"
+            if [[ "$line" =~ \} ]]; then
+                printf '%s:%s\n' "$start_line" "$block"
+                collecting=0
+                block=""
+            fi
+            continue
+        fi
+
+        if [[ "$line" =~ $use_re ]]; then
+            if [[ "$line" =~ $grouped_re ]] &&
+                [[ ! "$line" =~ \} ]]; then
+                collecting=1
+                start_line="$line_num"
+                block="$line"
+                continue
+            fi
+            printf '%s:%s\n' "$line_num" "$line"
+        fi
+    done <"$file"
+
+    if (( collecting )); then
+        printf '%s:%s\n' "$start_line" "$block"
+    fi
+}
+
 layer_in_list() {
     local candidate="$1"
     shift
@@ -81,6 +116,7 @@ emit_import_tops() {
     local line_body="$1"
     local rest item
 
+    line_body="${line_body//$'\n'/ }"
     if [[ "$line_body" =~ use[[:space:]]+(crate|project|project_core)::\{(.*)\} ]]; then
         rest="${BASH_REMATCH[2]}"
         while [[ "$rest" =~ \{[^{}]*\} ]]; do
@@ -119,14 +155,6 @@ for i in "${!crate_names[@]}"; do
             while IFS= read -r hit; do
                 line_num="${hit%%:*}"
                 line_body="${hit#*:}"
-                if [[ "$line_body" =~ use[[:space:]]+(crate|project|project_core)::\{ ]] &&
-                    [[ ! "$line_body" =~ \} ]]; then
-                    printf '%s:%s — %s:%s uses a multiline grouped import; split it into single-line imports so check_layers.sh can verify layer edges\n' \
-                        "$file" "$line_num" "$crate" "$layer" >&2
-                    printf '    %s\n' "$line_body" >&2
-                    FAIL=1
-                    continue
-                fi
                 while IFS= read -r top; do
                     [[ -z "$top" ]] && continue
                     layer_in_list "$top" "${layers[@]}" || continue
@@ -137,7 +165,7 @@ for i in "${!crate_names[@]}"; do
                     printf '    %s\n' "$line_body" >&2
                     FAIL=1
                 done < <(emit_import_tops "$line_body")
-            done < <(grep -nE '^[[:space:]]*(pub([[:space:]]*\([^)]*\))?[[:space:]]+)?use[[:space:]]+(crate|project|project_core)::' "$file" || true)
+            done < <(emit_import_hits "$file")
         done < <(files_for_layer "$root" "$layer")
     done
 done
