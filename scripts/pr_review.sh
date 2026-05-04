@@ -20,6 +20,11 @@ if ! command -v codex >/dev/null; then
   exit 1
 fi
 
+if ! command -v gh >/dev/null; then
+  echo "error: gh CLI not found on PATH" >&2
+  exit 1
+fi
+
 git fetch --quiet origin main
 
 if [ -n "$(git status --porcelain)" ]; then
@@ -36,7 +41,11 @@ if git diff --quiet origin/main...HEAD; then
   exit 1
 fi
 
-review_file=$(scripts/pr_report.py path)
+if ! review_file=$(scripts/pr_report.py path); then
+  echo "error: could not determine review file path" >&2
+  echo "  ensure gh is authenticated, or run scripts/pr_request.sh owner/name to diagnose GitHub access." >&2
+  exit 1
+fi
 if [ ! -f "$review_file" ]; then
   echo "error: review file not found: $review_file" >&2
   echo "  run TDD step 7 first: finalize the plan and draft PR description." >&2
