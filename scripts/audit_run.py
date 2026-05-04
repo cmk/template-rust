@@ -176,6 +176,18 @@ def changed_files_since_last(audit: Audit) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+def tracked_files_for(audit: Audit) -> list[str]:
+    """Return all tracked files under an audit's pathspec."""
+    result = subprocess.run(
+        ["git", "ls-files", "--", *audit.paths],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    )
+    return result.stdout.splitlines()
+
+
 def mark_audited(audit: Audit) -> None:
     subprocess.run(
         [str(STATE_SCRIPT), "mark", audit.name],
@@ -290,12 +302,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     changed = changed_files_since_last(audit)
     if args.force:
         # Force mode: audit the full pathspec
-        changed = subprocess.run(
-            ["git", "ls-files", "--", *audit.paths],
-            capture_output=True,
-            text=True,
-            cwd=REPO_ROOT,
-        ).stdout.splitlines()
+        changed = tracked_files_for(audit)
     elif not changed:
         print(f"audit_run.py: '{audit.name}' — no changed files since last run; skip")
         return 0
@@ -319,14 +326,21 @@ def cmd_cron_tick(_args: argparse.Namespace) -> int:
     if not due:
         # Silent on no-op days — cron mail stays quiet
         return 0
+    failures = []
     for audit in due:
-        changed = changed_files_since_last(audit)
-        if not changed:
-            continue  # early-exit; nothing changed under audit's paths
-        print(f"audit_run.py: cron-tick running '{audit.name}'")
-        output = invoke_codex(audit, changed)
-        append_to_log(audit, output, today)
-        mark_audited(audit)
+        try:
+            changed = changed_files_since_last(audit)
+            if not changed:
+                continue  # early-exit; nothing changed under audit's paths
+            print(f"audit_run.py: cron-tick running '{audit.name}'")
+            output = invoke_codex(audit, changed)
+            append_to_log(audit, output, today)
+            mark_audited(audit)
+        except Exception as exc:
+            failures.append(f"{audit.name}: {exc}")
+            print(f"audit_run.py: cron-tick failed for '{audit.name}': {exc}", file=sys.stderr)
+    if failures:
+        raise RuntimeError("cron-tick audit failures:\n" + "\n".join(failures))
     return 0
 
 
