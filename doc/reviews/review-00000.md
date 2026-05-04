@@ -9,7 +9,7 @@ will never correspond to an actual PR. The file exists to reserve the
 
 1. **Inventing a placeholder filename.** The local review transition
    names review files `review-NNNNN.md` from the start, computing
-   `NNNNN` via `scripts/next_pr_number.sh` before the PR is opened
+   `NNNNN` via `scripts/pr_request.sh` before the PR is opened
    (the script queries the repo's highest issue/PR number via
    `gh api` and adds one). Without a visible `review-NNNNN.md` in
    the directory, an agent that doesn't find the script might invent

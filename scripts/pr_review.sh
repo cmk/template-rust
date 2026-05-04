@@ -10,7 +10,7 @@ if [ "${1:-}" = "--check" ]; then
   command -v codex >/dev/null
   codex review --help >/dev/null
   command -v gh >/dev/null
-  scripts/review_path.sh >/dev/null
+  scripts/pr_report.py path >/dev/null
   scripts/workflow_state.sh
   exit 0
 fi
@@ -28,7 +28,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 if git -c color.ui=never log --oneline origin/main..HEAD | grep -E '^[0-9a-f]+ fixup!' >/dev/null; then
-  scripts/autosquash.sh
+  scripts/git_squash.sh
 fi
 
 if git diff --quiet origin/main...HEAD; then
@@ -36,7 +36,7 @@ if git diff --quiet origin/main...HEAD; then
   exit 1
 fi
 
-review_file=$(scripts/review_path.sh)
+review_file=$(scripts/pr_report.py path)
 if [ ! -f "$review_file" ]; then
   echo "error: review file not found: $review_file" >&2
   echo "  run TDD step 7 first: finalize the plan and draft PR description." >&2

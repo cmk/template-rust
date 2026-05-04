@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/project",
     "crates/core",
     "crates/cli",
 ]
@@ -13,6 +14,7 @@ license = "MIT"
 
 [workspace.dependencies]
 # Internal crates
+project = { path = "crates/project" }
 project-core = { path = "crates/core" }
 
 # Shared dependencies

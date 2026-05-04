@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — git-side pre-push gate (expensive checks).
+#
+# Runs `cargo test --workspace` + `cargo clippy --all-targets` once per
+# push, instead of once per commit. The fast checks live in
+# `.githooks/pre-commit` and already ran when local commits were
+# created.
+#
+# Stdin contract from githooks(5):
+#   <local-ref> <local-sha> <remote-ref> <remote-sha>
+# One line per ref being pushed. A delete uses the all-zero local SHA.
+# We only fire the suite if at least one ref pushes a non-zero local SHA.
+
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+step() {
+  printf 'pre-push: %s\n' "$*"
+}
+
+zero_sha="0000000000000000000000000000000000000000"
+have_push=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  if [[ -n "$local_sha" && "$local_sha" != "$zero_sha" ]]; then
+    have_push=1
+  fi
+done
+
+if [[ "$have_push" -eq 0 ]]; then
+  step "no refs to push (delete-only or no-op); skipping suite"
+  exit 0
+fi
+
+step "cargo test --workspace --quiet"
+cargo test --workspace --quiet
+
+step "cargo clippy --all-targets --quiet -- -D warnings"
+cargo clippy --all-targets --quiet -- -D warnings
+
+step "OK"
