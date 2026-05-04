@@ -3,7 +3,7 @@
 //! Import from any crate's test module:
 //!
 //! ```ignore
-//! use project_core::arb;
+//! use project_core::test::arb;
 //! ```
 //!
 //! Define strategies as functions returning `impl Strategy<Value = T>`,

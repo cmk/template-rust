@@ -45,6 +45,9 @@ import sys
 
 from github_client import resolve_repo
 
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+DEFAULT_REVIEW_DIR = REPO_ROOT / "doc" / "reviews"
+
 
 def parse_pr(value: str) -> int:
     if not re.fullmatch(r"[0-9]+", value):
@@ -52,8 +55,13 @@ def parse_pr(value: str) -> int:
     return int(value, 10)
 
 
-def review_path(n: int, out: pathlib.Path = pathlib.Path("doc/reviews")) -> pathlib.Path:
+def review_path(n: int, out: pathlib.Path = DEFAULT_REVIEW_DIR) -> pathlib.Path:
     return out / f"review-{n:05d}.md"
+
+
+def repo_path(value: str) -> pathlib.Path:
+    path = pathlib.Path(value)
+    return path if path.is_absolute() else REPO_ROOT / path
 
 
 def request_next_pr_number() -> int:
@@ -270,7 +278,7 @@ def cmd_body(args: argparse.Namespace) -> int:
 
 def cmd_reviews(args: argparse.Namespace) -> int:
     repo = resolve_repo(args.pr, args.repo)
-    out_dir = pathlib.Path(args.out)
+    out_dir = repo_path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = review_path(args.pr, out_dir)
 

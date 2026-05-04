@@ -10,7 +10,7 @@ if [ "${1:-}" = "--check" ]; then
   command -v codex >/dev/null
   codex review --help >/dev/null
   command -v gh >/dev/null
-  scripts/pr_report.py path >/dev/null
+  scripts/pr_report.py path 1 >/dev/null
   scripts/workflow_state.sh
   exit 0
 fi

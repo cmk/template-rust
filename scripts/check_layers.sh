@@ -67,17 +67,7 @@ files_for_layer() {
     [[ -d "${root}/${layer}" ]] && find "${root}/${layer}" -type f -name '*.rs' -print
 }
 
-known_layer() {
-    local candidate="$1"
-    shift
-    local layer
-    for layer in "$@"; do
-        [[ "$candidate" == "$layer" ]] && return 0
-    done
-    return 1
-}
-
-authorised_layer() {
+layer_in_list() {
     local candidate="$1"
     shift
     local layer
@@ -129,10 +119,18 @@ for i in "${!crate_names[@]}"; do
             while IFS= read -r hit; do
                 line_num="${hit%%:*}"
                 line_body="${hit#*:}"
+                if [[ "$line_body" =~ use[[:space:]]+(crate|project|project_core)::\{ ]] &&
+                    [[ ! "$line_body" =~ \} ]]; then
+                    printf '%s:%s — %s:%s uses a multiline grouped import; split it into single-line imports so check_layers.sh can verify layer edges\n' \
+                        "$file" "$line_num" "$crate" "$layer" >&2
+                    printf '    %s\n' "$line_body" >&2
+                    FAIL=1
+                    continue
+                fi
                 while IFS= read -r top; do
                     [[ -z "$top" ]] && continue
-                    known_layer "$top" "${layers[@]}" || continue
-                    authorised_layer "$top" "${authorised[@]}" && continue
+                    layer_in_list "$top" "${layers[@]}" || continue
+                    layer_in_list "$top" "${authorised[@]}" && continue
 
                     printf '%s:%s — %s:%s imports %s which is not in %s'\''s depends-on list\n' \
                         "$file" "$line_num" "$crate" "$layer" "$top" "$layer" >&2
