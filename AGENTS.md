@@ -148,8 +148,10 @@ unless explicitly asked.
       //! depends-on: conn
 
   `scripts/check_layers.sh` parses these headers and fails on any
-  production-code `use crate::<top>`, `use project_core::<top>`, or
-  `use project::<top>` import that names a module in that crate's
+  production-code layer import through `crate::<top>`, the crate's own
+  extern name (for example `project_core::<top>` or
+  `project_cli::<top>`), or a facade path such as
+  `project::core::<top>` when that path names a module in that crate's
   layer set but is not listed in the current layer's `depends-on:`
   sentinel. Adding a new edge requires updating both the sentinel and
   this rule's prose so the gate and convention stay in sync.

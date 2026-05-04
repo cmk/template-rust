@@ -19,7 +19,10 @@ mod tests {
     #[cfg(feature = "core")]
     #[test]
     fn project_facade_core_namespace_compiles() {
-        let path = crate::core::testing::fixture_or_skip(".", "__missing_fixture__");
+        let path = crate::core::testing::fixture_or_skip(
+            env!("CARGO_MANIFEST_DIR"),
+            "__missing_fixture__",
+        );
         assert!(path.is_none());
     }
 }
