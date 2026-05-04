@@ -18,7 +18,7 @@
 # file has to be renamed to match the number GitHub actually assigned.
 #
 # Usage:
-#     scripts/next_pr_number.sh [owner/name]
+#     scripts/pr_request.sh [owner/name]
 #
 # If `owner/name` is omitted, the repo is inferred via `gh repo view`.
 #

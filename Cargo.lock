@@ -219,6 +219,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "project"
+version = "0.1.0"
+dependencies = [
+ "project-core",
+]
+
+[[package]]
 name = "project-cli"
 version = "0.1.0"
 dependencies = [
