@@ -18,8 +18,8 @@ __pycache__/
 # Personal project notes (not shared with agents or CI)
 doc/notes/
 
-# /watch-pr dynamic-mode backoff state (per-PR consecutive-quiet-tick counters)
-/.watch-pr/
+# /pr-watch dynamic-mode backoff state (per-PR consecutive-quiet-tick counters)
+/.pr-watch/
 
 # Secrets and local environment
 .env

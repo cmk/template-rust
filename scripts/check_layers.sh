@@ -23,6 +23,11 @@ crate_layers=(
   "command parse"
 )
 
+crate_import_roots=(
+  "crate project_core project::core"
+  "crate project_cli"
+)
+
 parse_deps() {
     local root="$1"
     local layer="$2"
@@ -69,9 +74,10 @@ files_for_layer() {
 
 emit_import_hits() {
     local file="$1"
+    local root_re="$2"
     local line line_num=0 start_line=0 collecting=0 block=""
-    local use_re='^[[:space:]]*(pub([[:space:]]*\([^)]*\))?[[:space:]]+)?use[[:space:]]+(crate|project|project_core)::'
-    local grouped_re='use[[:space:]]+(crate|project|project_core)::\{'
+    local use_re="^[[:space:]]*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?use[[:space:]]+(${root_re})::"
+    local grouped_re="use[[:space:]]+(${root_re})::\\{"
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         ((line_num += 1))
@@ -114,10 +120,11 @@ layer_in_list() {
 
 emit_import_tops() {
     local line_body="$1"
+    local root_re="$2"
     local rest item
 
     line_body="${line_body//$'\n'/ }"
-    if [[ "$line_body" =~ use[[:space:]]+(crate|project|project_core)::\{(.*)\} ]]; then
+    if [[ "$line_body" =~ use[[:space:]]+(${root_re})::\{(.*)\} ]]; then
         rest="${BASH_REMATCH[2]}"
         while [[ "$rest" =~ \{[^{}]*\} ]]; do
             rest="${rest//${BASH_REMATCH[0]}/}"
@@ -132,7 +139,7 @@ emit_import_tops() {
         return
     fi
 
-    if [[ "$line_body" =~ use[[:space:]]+(crate|project|project_core)::([a-z][a-z0-9_]*) ]]; then
+    if [[ "$line_body" =~ use[[:space:]]+(${root_re})::([a-z][a-z0-9_]*) ]]; then
         printf '%s\n' "${BASH_REMATCH[2]}"
     fi
 }
@@ -140,6 +147,7 @@ emit_import_tops() {
 for i in "${!crate_names[@]}"; do
     crate="${crate_names[$i]}"
     root="${crate_roots[$i]}"
+    root_re="${crate_import_roots[$i]// /|}"
     # shellcheck disable=SC2206
     layers=(${crate_layers[$i]})
 
@@ -164,8 +172,8 @@ for i in "${!crate_names[@]}"; do
                         "$file" "$line_num" "$crate" "$layer" "$top" "$layer" >&2
                     printf '    %s\n' "$line_body" >&2
                     FAIL=1
-                done < <(emit_import_tops "$line_body")
-            done < <(emit_import_hits "$file")
+                done < <(emit_import_tops "$line_body" "$root_re")
+            done < <(emit_import_hits "$file" "$root_re")
         done < <(files_for_layer "$root" "$layer")
     done
 done

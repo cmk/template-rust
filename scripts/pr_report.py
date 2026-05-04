@@ -267,7 +267,7 @@ def render(it: dict) -> str:
 
 def cmd_path(args: argparse.Namespace) -> int:
     pr = args.pr if args.pr is not None else request_next_pr_number()
-    print(review_path(pr))
+    print(review_path(pr).relative_to(REPO_ROOT))
     return 0
 
 
