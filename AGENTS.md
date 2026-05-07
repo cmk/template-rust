@@ -186,6 +186,55 @@ unless explicitly asked.
       └── server.rs   <-- Submodule of 'network'
   ```
 
+## Dependency policy
+
+This template is the source of truth for which external crates may
+appear in any first-party Cargo.toml. The policy has three tiers:
+
+1. **Required tier.** Listed in this repo's
+   `[workspace.dependencies]` (above the allowed-tier fence). Crates
+   with two or more first-party consumers. Member crates and
+   downstream repos use them via `{ workspace = true }`; never
+   re-state the version number.
+2. **Allowed tier.** Listed below the allowed-tier fence in
+   `[workspace.dependencies]` as **commented** entries, and
+   tabulated in `doc/CRATES.md`. Single-consumer crates pinned to
+   the canonical version. To adopt one in a member crate, uncomment
+   its line here and add `{ workspace = true }` in the member's
+   Cargo.toml — do not invent your own version pin.
+3. **Blacklist.** `[[bans.deny]]` entries in `deny.toml`. Crates that
+   may NOT appear in any first-party Cargo.toml without an explicit
+   per-wrapper exemption. Currently:
+   - `anyhow` — libraries must use `thiserror`. Binary-only
+     exemption via `wrappers = ["riffgrep"]`. New binary crates
+     wanting anyhow add themselves to the wrapper list via PR here.
+   - `clap` — `bpaf` won. Currently no first-party clap usage; this
+     rule is preventive.
+   - `dasp-sample` — direct dep banned. cpal pulls it transitively
+     and that's fine; first-party Cargo.toml entries surfacing
+     `Sample`/`ToSample`/`FromSample` are not. The future shared
+     audio crate hand-rolls its sample/frame types.
+   - `async-trait` — workspace MSRV is Rust 1.85, which has native
+     `async fn in trait`. Use `-> impl Future<Output = ...> + Send`
+     where Send bounds are required.
+
+**Promotion rule.** When a single-consumer (allowed-tier) crate
+gains a second first-party consumer, open a PR here to move its
+line above the allowed-tier fence in `Cargo.toml` and update the
+table in `doc/CRATES.md`.
+
+**Adding a brand-new crate.** Same flow: PR to template-rust adds
+the entry (required- or allowed-tier as appropriate) and updates
+`doc/CRATES.md`. The PR is the place to argue why the crate earns
+its spot — second-tier alternatives, maintenance status,
+duplicate-version risk, etc. Until the PR lands, the crate may not
+appear in any first-party Cargo.toml.
+
+`cargo deny check` enforces the blacklist; no automated check
+enforces required vs. allowed (that's a code-review job). The
+`multiple-versions = "warn"` rule in `deny.toml` surfaces the most
+common drift signal.
+
 ## Be a Good Gardener
 
 Weeds are weeds, regardless of who planted them. Whenever an agent

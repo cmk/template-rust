@@ -12,17 +12,143 @@ version = "0.1.0"
 rust-version = "1.85"
 license = "MIT"
 
+# ──────────────────────────────────────────────────────────────────────────
+# Dependency policy: see AGENTS.md "Dependency policy" and doc/CRATES.md.
+#
+# Three tiers:
+#   • Required tier  — entries below; multi-consumer crates. Projects MUST
+#                       inherit via { workspace = true }.
+#   • Allowed tier   — commented entries below the fence. Single-consumer
+#                       crates pinned to canonical versions; uncomment when
+#                       adopting in a member crate.
+#   • Blacklist      — see deny.toml's [[bans.deny]] entries.
+#
+# Promotion rule: when an allowed-tier crate gains a second first-party
+# consumer, open a PR here moving its line above the fence. Adding a brand-
+# new crate also goes through a PR here.
+# ──────────────────────────────────────────────────────────────────────────
+
 [workspace.dependencies]
 # Internal crates
 project = { path = "crates/project" }
 project-core = { path = "crates/core" }
 
-# Shared dependencies
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
-tokio = { version = "1", features = ["full"] }
-tracing = "0.1"
+# ── Required tier (multi-consumer) ────────────────────────────────────────
 
-# Shared dev-dependencies
-proptest = "1"
+# Cross-project base. The future shared numeric/audio/MIDI/time crate
+# inherits from connections; time and hifitime are re-exported from there.
+# Reference by git rev when adopted in a downstream repo.
+# connections      = { git = "...", rev = "..." }
+
+# Universal foundations
+serde            = { version = "1", features = ["derive"] }
+serde_json       = "1"
+thiserror        = "2"
+# tokio features intentionally unset — binaries opt into ["full"], libraries
+# pick narrow features (rt, sync, macros, time, ...) at the consumer site.
+tokio            = "1"
+tracing          = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Numeric / time (re-exported via connections)
+fixed            = "1"
+time             = "0.3"
+hifitime         = { version = "4.3", default-features = false }
+
+# Domain
+midir            = "0.10"
+rosc             = "0.11"
+rust-fsm         = "0.7"
+
+# CLI / id
+bpaf             = { version = "0.9", features = ["derive"] }
+uuid             = "1"
+
+# Networking / discovery
+mdns-sd          = "0.12"
+russh            = "0.49"
+
+# Serialization adjacent
+quick-xml        = { version = "0.36", features = ["serialize"] }
+
+# Compression / archive
+flate2           = "1"
+zip              = { version = "8", default-features = false, features = ["deflate"] }
+xz2              = "0.1"
+
+# Hashing
+sha1             = "0.10"
+
+# Async ecosystem
+futures          = "0.3"
+
+# Filesystem
+ignore           = "0.4"
+
+# RNG (single rand major across the workspace — see deny.toml's
+# multiple-versions policy)
+rand             = "0.10"
+
+# MCP
+rmcp             = "1.4"
+
+# Required dev-dependencies
+proptest         = "1"
+tempfile         = "3"
+assert_cmd       = "2"
+predicates       = "3"
+insta            = "1"
+trybuild         = "1"
+
+# ── Allowed tier (single-consumer; uncomment to adopt) ────────────────────
+# Promoting to required-tier when a second consumer adopts: open a PR here
+# moving the line above the fence. Pins below are the canonical versions —
+# don't drift in a downstream Cargo.toml.
+
+# Audio I/O & playback
+# cpal           = "0.15"
+# rodio          = "0.19"
+# hound          = "3.5"
+# lofty          = "0.22"
+
+# Audio sync (FFI)
+# rusty_link     = "=0.4.8"
+
+# Real-time / lock-free
+# rtrb               = "0.3"
+# arc-swap           = "1"
+# crossbeam-channel  = "0.5"
+
+# RNG extras (must align with rand 0.10 above)
+# rand_distr     = "0.5"
+# rand_pcg       = "0.10"
+
+# Misc runtime
+# spin_sleep     = "1"
+# toml           = "0.8"
+# schemars       = "1"
+# tokio-stream   = "0.1"
+# nix            = "0.31"
+# mimalloc       = "0.1"
+# rayon          = "1"
+# zstd           = "0.13"
+# ctrlc          = "3"
+
+# TUI
+# crossterm      = { version = "0.28", features = ["event-stream"] }
+# ratatui        = { version = "0.29", features = ["crossterm"] }
+
+# Search / pattern
+# globset        = "0.4"
+# regex          = "1"
+
+# Embedded scripting / DB
+# mlua           = { version = "0.10", features = ["lua54", "vendored"] }
+# rusqlite       = { version = "0.33", features = ["bundled", "modern_sqlite", "functions"] }
+
+# Agent
+# rig-core       = { version = "0.35", features = ["rmcp"] }
+
+# Allowed dev-dependencies
+# criterion              = { version = "0.5", features = ["html_reports"] }
+# proptest-state-machine = "0.3"

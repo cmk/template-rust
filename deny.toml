@@ -23,6 +23,33 @@ wildcards = "deny"
 allow-wildcard-paths = true
 highlight = "all"
 
+# ── Crate blacklist ───────────────────────────────────────────────────────
+# See AGENTS.md "Dependency policy" for rationales and the promotion rule.
+# Adding or removing an entry here happens via PR to template-rust; downstream
+# repos clone this deny.toml with no changes (a binary repo that needs to
+# wrap a banned crate, e.g. anyhow, picks up the per-wrapper exemption below
+# automatically once it's in the graph).
+
+[[bans.deny]]
+name = "anyhow"
+reason = "Libraries must use thiserror with concrete error enums. anyhow is acceptable in binary crates only — they take the per-wrapper exemption below."
+# Crates allowed to depend on anyhow directly. cargo-deny matches by package
+# name in the dep graph; an unmatched wrapper is just a warning, so this entry
+# is forward-compatible across repos that don't have any of these.
+wrappers = ["riffgrep"]
+
+[[bans.deny]]
+name = "clap"
+reason = "bpaf is the standardized CLI parser. Currently zero first-party clap usage; this rule is preventive."
+
+[[bans.deny]]
+name = "dasp-sample"
+reason = "Direct dep banned to keep ToSample/FromSample out of first-party public APIs. cpal pulls dasp-sample transitively; that's unavoidable and fine. The future shared audio crate hand-rolls its sample/frame types in the connections style (typed quantities, f32-canonical)."
+
+[[bans.deny]]
+name = "async-trait"
+reason = "Rust 1.85 (workspace MSRV) has native async fn in trait. Migrate to that and use `-> impl Future<Output = ...> + Send` where Send bounds are required."
+
 [licenses]
 version = 2
 # Permissive licenses that compose cleanly with MIT (the workspace
