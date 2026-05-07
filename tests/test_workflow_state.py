@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -16,9 +18,12 @@ def git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
 
 
-def run_state(repo: Path, script: Path) -> dict[str, str]:
+def run_state(repo: Path, script: Path, path_prefix: Path) -> dict[str, str]:
     env = os.environ.copy()
-    env["PATH"] = os.pathsep.join(path for path in ("/bin", "/usr/bin") if Path(path).exists())
+    env.pop("WORKFLOW_REVIEW_FILE", None)
+    env.pop("WORKFLOW_STATE_ALLOW_REVIEW_PATH_FALLBACK", None)
+    base_path = env.get("PATH", "")
+    env["PATH"] = f"{path_prefix}{os.pathsep}{base_path}" if base_path else str(path_prefix)
     result = subprocess.run(
         [str(script)],
         cwd=repo,
@@ -44,7 +49,12 @@ class WorkflowStateTests(unittest.TestCase):
             git(repo, "config", "user.email", "workflow@example.invalid")
 
             scripts = repo / "scripts"
+            bin_dir = root / "bin"
             scripts.mkdir(parents=True)
+            bin_dir.mkdir()
+            gh = bin_dir / "gh"
+            gh.write_text(f"#!{sys.executable}\nimport sys\nsys.exit(1)\n", encoding="utf-8")
+            gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
             script = scripts / "workflow_state.sh"
             script.write_text(WORKFLOW_STATE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
             script.chmod(script.stat().st_mode | stat.S_IXUSR)
@@ -62,7 +72,14 @@ class WorkflowStateTests(unittest.TestCase):
             git(repo, "commit", "-m", "feat: branch work")
             git(repo, "push", "-u", "origin", branch)
 
-            fields = run_state(repo, script)
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "WORKFLOW_REVIEW_FILE": "doc/reviews/review-99999.md",
+                    "WORKFLOW_STATE_ALLOW_REVIEW_PATH_FALLBACK": "1",
+                },
+            ):
+                fields = run_state(repo, script, bin_dir)
             self.assertEqual(fields["state"], "pushed")
             self.assertEqual(fields["origin_branch_ahead"], "0")
             self.assertEqual(fields["origin_branch_behind"], "0")
