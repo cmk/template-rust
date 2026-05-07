@@ -137,7 +137,7 @@ table).
 | `anyhow` | `wrappers = ["riffgrep"]` | Libraries must use `thiserror`. Binary crates that genuinely need anyhow add themselves to the wrapper list via PR here. |
 | `clap` | none | `bpaf` won. Currently zero first-party clap usage; preventive. |
 | `dasp-sample` | none (transitive via cpal still allowed) | Keeps `Sample`/`ToSample`/`FromSample` out of first-party public APIs. The future shared audio crate hand-rolls its sample/frame types in the connections style (typed quantities, f32-canonical). |
-| `async-trait` | none | Workspace MSRV is Rust 1.85, which has native `async fn in trait`. Use `-> impl Future<Output = ...> + Send` where Send bounds are required. |
+| `async-trait` | none | Workspace MSRV is Rust 1.88, which has native `async fn in trait`. Use `-> impl Future<Output = ...> + Send` where Send bounds are required. |
 
 The existing `[bans] multiple-versions = "warn"` policy in
 `deny.toml` is the secondary signal — it surfaces accidental version
