@@ -195,7 +195,10 @@ appear in any first-party Cargo.toml. The policy has three tiers:
    `[workspace.dependencies]` (above the allowed-tier fence). Crates
    with two or more first-party consumers. Member crates and
    downstream repos use them via `{ workspace = true }`; never
-   re-state the version number.
+   re-state the version number. **One exception:** `connections` is
+   required-tier policy but is not declared in this template's
+   `Cargo.toml` — each downstream repo adds the entry directly,
+   pinning the same git rev. See `doc/CRATES.md` for the rationale.
 2. **Allowed tier.** Listed below the allowed-tier fence in
    `[workspace.dependencies]` as **commented** entries, and
    tabulated in `doc/CRATES.md`. Single-consumer crates pinned to

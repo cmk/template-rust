@@ -35,9 +35,12 @@ project-core = { path = "crates/core" }
 
 # ── Required tier (multi-consumer) ────────────────────────────────────────
 
-# Cross-project base. The future shared numeric/audio/MIDI/time crate
-# inherits from connections; time and hifitime are re-exported from there.
-# Reference by git rev when adopted in a downstream repo.
+# Downstream-only required entry: `connections` is the foundation for
+# time/numeric and is treated as required-tier policy, but the entry is
+# NOT declared here in the template — the template would otherwise need
+# an external git fetch on every fresh build. Each downstream repo adds
+# its own line, pinning the same git rev that participates in the law.
+# Pattern (uncomment when forking into a downstream repo):
 # connections      = { git = "...", rev = "..." }
 
 # Universal foundations

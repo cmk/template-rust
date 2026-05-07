@@ -16,17 +16,23 @@ The corresponding `[workspace.dependencies]` entries live in
 
 ## Required tier
 
-Multi-consumer crates. Member crates use `{ workspace = true }`;
-downstream repos clone the same Cargo.toml entries.
+Multi-consumer crates declared in this template's
+`[workspace.dependencies]`. Member crates use `{ workspace = true }`;
+downstream repos clone the same `Cargo.toml` entries verbatim.
 
-| Crate | Pin | Workspace features | Why required |
+The `Workspace options` column shows whatever the template's
+`[workspace.dependencies]` block specifies beyond `version = "..."` —
+features, `default-features = false`, or both. Empty means
+"`version = "..."` only (defaults on)".
+
+| Crate | Pin | Workspace options | Why required |
 |---|---|---|---|
-| `serde` | `1` | `derive` | universal |
+| `serde` | `1` | `features = ["derive"]` | universal |
 | `serde_json` | `1` | — | universal |
 | `thiserror` | `2` | — | universal |
-| `tokio` | `1` | (none — consumers opt in) | universal |
+| `tokio` | `1` | — (consumers opt in to features) | universal |
 | `tracing` | `0.1` | — | universal |
-| `tracing-subscriber` | `0.3` | `env-filter` | shared logging baseline |
+| `tracing-subscriber` | `0.3` | `features = ["env-filter"]` | shared logging baseline |
 | `proptest` (dev) | `1` | — | testing baseline (mandated) |
 | `tempfile` (dev) | `3` | — | shared scratch-fs |
 | `assert_cmd` (dev) | `2` | — | binary integration tests |
@@ -39,22 +45,21 @@ downstream repos clone the same Cargo.toml entries.
 | `midir` | `0.10` | — | MIDI I/O |
 | `rosc` | `0.11` | — | OSC encode/decode |
 | `rust-fsm` | `0.7` | — | state machines |
-| `bpaf` | `0.9` | `derive` | CLI parser |
-| `uuid` | `1` | (consumers pick v4/v7/serde) | id |
+| `bpaf` | `0.9` | `features = ["derive"]` | CLI parser |
+| `uuid` | `1` | — (consumers pick v4/v7/serde) | id |
 | `mdns-sd` | `0.12` | — | service discovery |
 | `russh` | `0.49` | — | SSH client |
-| `quick-xml` | `0.36` | `serialize` | XML |
+| `quick-xml` | `0.36` | `features = ["serialize"]` | XML |
 | `flate2` | `1` | — | gzip |
-| `zip` | `8` | `default-features = false`, `deflate` | archive |
+| `zip` | `8` | `default-features = false, features = ["deflate"]` | archive |
 | `xz2` | `0.1` | — | xz |
 | `sha1` | `0.10` | — | hashing |
 | `futures` | `0.3` | — | Stream / async utilities |
 | `ignore` | `0.4` | — | gitignore-aware walk |
 | `rand` | `0.10` | — | RNG (single major workspace-wide) |
-| `rmcp` | `1.4` | (consumers pick) | MCP |
-| `connections` | git rev | — | shared base for time/numeric (downstream repos pin a rev; not declared here in the template) |
+| `rmcp` | `1.4` | — (consumers pick) | MCP |
 
-`tokio` features are intentionally unset at workspace level. Binaries
+`tokio` options are intentionally unset at workspace level. Binaries
 opt into `["full"]` at the consumer site; libraries pick narrow
 features (`rt`, `sync`, `macros`, `time`, …). This avoids accidentally
 inheriting `full` into a small library via `{ workspace = true }`.
@@ -62,6 +67,20 @@ inheriting `full` into a small library via `{ workspace = true }`.
 `uuid` likewise leaves features to the consumer — the workspace pin
 covers the version, the per-crate features cover what each consumer
 actually needs (typically `v4`, `v7`, or `serde`).
+
+### Required tier — downstream-only
+
+The one exception to the "declared in this template" rule:
+
+| Crate | Pin | Workspace options | Why special |
+|---|---|---|---|
+| `connections` | git rev | — | foundation for time/numeric. Pinned by git rev in each downstream repo's own `[workspace.dependencies]`; **NOT declared in this template's `Cargo.toml`** so the template stays buildable without an external git fetch. Notably, this is also the only non-audio domain crate the future shared crate inherits — every other domain dep (cpal, midir, rosc, rtrb, hound, lofty, rusty_link, rodio) is audio- or MIDI-flavored. |
+
+Treat this row as required-tier policy even though the template's
+`[workspace.dependencies]` block doesn't carry the entry — every
+downstream repo that participates in the law pins the same git rev,
+and version drift here is just as load-bearing as for any other
+required-tier crate.
 
 ---
 
@@ -76,7 +95,7 @@ crate gets promoted to required tier via a PR to this repo (move the
 line above the fence in `Cargo.toml`, move the row up in this
 table).
 
-| Crate | Pin | Workspace features | Notes |
+| Crate | Pin | Workspace options | Notes |
 |---|---|---|---|
 | `cpal` | `0.15` | — | audio I/O |
 | `rodio` | `0.19` | — | playback over cpal |
@@ -92,19 +111,19 @@ table).
 | `toml` | `0.8` | — | config parsing |
 | `schemars` | `1` | — | JsonSchema derive |
 | `tokio-stream` | `0.1` | — | `wrappers::ReceiverStream`, unique value over futures |
-| `crossterm` | `0.28` | `event-stream` | TUI input |
-| `ratatui` | `0.29` | `crossterm` | TUI |
+| `crossterm` | `0.28` | `features = ["event-stream"]` | TUI input |
+| `ratatui` | `0.29` | `features = ["crossterm"]` | TUI |
 | `globset` | `0.4` | — | glob matching |
 | `regex` | `1` | — | text patterns |
-| `nix` | `0.31` | `signal`, `process` | signals |
+| `nix` | `0.31` | `features = ["signal", "process"]` | signals |
 | `mimalloc` | `0.1` | — | allocator |
 | `rayon` | `1` | — | data-parallel iteration |
-| `mlua` | `0.10` | `lua54`, `vendored` | Lua scripting |
-| `rusqlite` | `0.33` | `bundled`, `modern_sqlite`, `functions` | SQLite |
+| `mlua` | `0.10` | `features = ["lua54", "vendored"]` | Lua scripting |
+| `rusqlite` | `0.33` | `features = ["bundled", "modern_sqlite", "functions"]` | SQLite |
 | `zstd` | `0.13` | — | compression |
 | `ctrlc` | `3` | — | SIGINT in CLI binaries |
-| `rig-core` | `0.35` | `rmcp` | LLM/agent |
-| `criterion` (dev) | `0.5` | `html_reports` | benchmarks |
+| `rig-core` | `0.35` | `features = ["rmcp"]` | LLM/agent |
+| `criterion` (dev) | `0.5` | `features = ["html_reports"]` | benchmarks |
 | `proptest-state-machine` (dev) | `0.3` | — | proptest extension |
 
 ---
