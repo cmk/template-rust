@@ -10,9 +10,9 @@ is the human-facing tour.
 
 ## What's in the box
 
-- **Pinned toolchain** via `rust-toolchain.toml` (Rust 1.85 + clippy +
+- **Pinned toolchain** via `rust-toolchain.toml` (Rust 1.88 + clippy +
   rustfmt). CI installs the same channel via
-  `dtolnay/rust-toolchain@1.85.0`.
+  `dtolnay/rust-toolchain@1.88.0`.
 - **Two-layer local hook chain**: a Claude Code `PreToolUse` hook
   (`.claude/settings.json`) gates agent-invoked `git commit*` Bash
   calls, plus git-side `pre-commit` and `pre-push` hooks. Commit-time
