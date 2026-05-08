@@ -121,11 +121,52 @@ scripts/
      `git config core.hooksPath .githooks`. (Layer 1 in
      `.claude/settings.json` works without any setup; this enables
      Layer 2, the unbypassable safety net at commit time.)
+   - **Replace or remove the dependency policy.** See the
+     "Dependency policy" callout below — the shipped curation reflects
+     the template author's audio-software workspace and almost
+     certainly doesn't match yours.
 2. Read [AGENTS.md](AGENTS.md) top-to-bottom once — it's the source of
    truth for the TDD + review workflow. This README is a derived view.
 3. Start a sprint: pick a plan number, ask worktree-or-branch, write
    the plan, commit as `plan: <goal>`. The workflow takes over from
    there.
+
+### Dependency policy: editing or removing it
+
+The template ships with a three-tier crate-allowlist policy
+(required / allowed / blacklist) that's load-bearing for the
+template author's own multi-repo workspace and irrelevant for almost
+everyone else. To make it yours:
+
+- **`Cargo.toml`** — the `[workspace.dependencies]` block has two
+  sections separated by a `# --- allowed tier ---` fence. Above the
+  fence: required-tier crates that every member crate inherits via
+  `{ workspace = true }`. Below: commented-out allowed-tier crates
+  that members opt into by uncommenting. **Replace both sections
+  with your own crates.** Keep the fence comment so the two-tier
+  structure stays readable.
+- **`deny.toml`** — `[[bans.deny]]` entries hard-ban specific crates.
+  The shipped entries are opinionated (e.g. `anyhow` in libraries,
+  `clap` because `bpaf` won). **Edit or delete them.** The
+  `[advisories]`, `[bans] multiple-versions`, `[licenses]`, and
+  `[sources]` policies above the bans block are general-purpose;
+  most projects can keep them.
+- **`AGENTS.md`** → the `## Dependency policy` section describes the
+  three-tier model and the promotion rule. **Rewrite the rationales
+  to match your own crate set, or delete the entire section** if
+  you don't want a formal policy. Keep the section's *shape* if you
+  like the pattern (it's useful for any multi-crate workspace).
+- **`doc/CRATES.md`** — the protected reference table that AGENTS.md
+  links to. **Replace the tables with your own crates, or delete the
+  file entirely** (and remove the link from AGENTS.md).
+
+To remove the feature outright in one pass: delete `doc/CRATES.md`,
+delete the `## Dependency policy` section from `AGENTS.md`, clear all
+`[[bans.deny]]` entries from `deny.toml`, and reduce
+`[workspace.dependencies]` to whatever your project actually uses
+(no fence, no commented allowed-tier block). The rest of the
+template — TDD workflow, hooks, review scripts, CI — is independent
+of the policy and keeps working unchanged.
 
 ## License
 
