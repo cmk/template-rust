@@ -59,24 +59,14 @@ fi
 condition. Plain `git diff` always exits 0 on a successful run and
 would not detect divergence.
 
-**Verify the review file exists.** `pr_review.sh` appends to a file
-created by TDD step 7; it never creates the file itself. Get its
-path:
-
-- If a PR already exists for this branch:
-  ```
-  scripts/pr_report.py path "$(gh pr view --json number --jq .number)"
-  ```
-- Otherwise (the normal pre-push case):
-  ```
-  scripts/pr_report.py path
-  ```
-
-`pr_report.py path` predicts (or accepts) the PR number and emits the
-zero-padded filename. Confirm the returned path exists **and contains
-a `## Summary` section**. If either is missing, abort and tell the
-user to run TDD step 7. Do not create the file yourself — the PR body
-belongs in step 7's commit, not as a post-hoc fabrication.
+Review-file selection and validation belong to `scripts/pr_review.sh`.
+Do not run a separate `scripts/pr_report.py path` existence gate in
+this command. The predicted next PR number can drift between TDD step 7
+and this transition; the script first looks for exactly one
+branch-local `doc/reviews/review-NNNNN.md` in
+`git diff origin/main...HEAD`, then falls back to the predicted path.
+It also validates that the chosen file exists and contains `## Summary`.
+If that validation fails, surface the script's error and stop.
 
 ## Step 2: Run codex via scripts/pr_review.sh
 
@@ -101,7 +91,8 @@ yourself.
 ## Step 3: Read back the appended review section
 
 Capture the section codex appended to the review file so Step 4 can
-triage it. No interpretation, no summarization — pass it through
+triage it. Use the review path printed by `pr_review.sh` after a
+successful run. No interpretation, no summarization — pass it through
 verbatim to the triage logic. (`tail` from a recorded byte-offset, or
 re-read the file and slice from the last `## Local review` heading
 onward.)
