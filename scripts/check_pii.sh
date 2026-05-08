@@ -61,17 +61,28 @@ patterns=(
   'sk-[A-Za-z0-9]{20,}'
 )
 alt=$(IFS='|'; echo "${patterns[*]}")
+allow_patterns=''
+
+load_worktree_allow_patterns() {
+  if [ -f .pii-allow ]; then
+    allow_patterns=$(grep -vE '^[[:space:]]*(#|$)' .pii-allow || true)
+  fi
+}
+
+load_tree_allow_patterns() {
+  local raw=''
+  if raw=$(git show "$tree_ref:.pii-allow" 2>/dev/null); then
+    allow_patterns=$(printf '%s\n' "$raw" | grep -vE '^[[:space:]]*(#|$)' || true)
+  fi
+}
 
 filter_allowed() {
   local input="$1"
   [ -z "$input" ] && return 0
 
-  if [ -f .pii-allow ]; then
-    allow_patterns=$(grep -vE '^[[:space:]]*(#|$)' .pii-allow || true)
-    if [ -n "$allow_patterns" ]; then
-      input=$(printf '%s\n' "$input" \
-        | grep -vE -f <(printf '%s\n' "$allow_patterns") || true)
-    fi
+  if [ -n "$allow_patterns" ]; then
+    input=$(printf '%s\n' "$input" \
+      | grep -vE -f <(printf '%s\n' "$allow_patterns") || true)
   fi
 
   if [ -n "$input" ]; then
@@ -83,6 +94,7 @@ filter_allowed() {
 report=''
 
 if [ "$mode" = staged ]; then
+  load_worktree_allow_patterns
   # ACMR = Added / Copied / Modified / Renamed; excludes pure deletions.
   # The script and the allow-list itself are skipped so self-inclusion
   # of the patterns doesn't trip the check.
@@ -111,6 +123,7 @@ else
     echo "error: not a valid tree-ish: $tree_ref" >&2
     exit 2
   fi
+  load_tree_allow_patterns
 
   tree_report=''
   while IFS= read -r -d '' f; do

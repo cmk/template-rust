@@ -31,6 +31,8 @@ class CheckLayersTests(unittest.TestCase):
                     [
                         "//! layer: conn",
                         "//! depends-on:",
+                        'const NORMAL_PATTERN: &str = "/*";',
+                        'const RAW_PATTERN: &str = r#"/* also not a comment */"#;',
                         "use crate::{",
                         "    // the semicolon in this comment; is not the group terminator",
                         "    /* this block comment; is not the group terminator either */",
