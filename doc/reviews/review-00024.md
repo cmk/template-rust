@@ -65,3 +65,19 @@ Full review comments:
 
 - [P2] Narrow the PII fixture allow-list — .pii-allow:14-14
   Because `.pii-allow` regexes are applied to every offending line, this unanchored entry suppresses any staged or tree hit containing `<home>/project`, including suffixes like `<home>/project/private`, not just the test fixture. That creates a blind spot in the home-path gate; split the fixture string in tests or make the exception specific enough that real matching paths still fail.
+
+## Local review (2026-05-07)
+
+**Branch:** plan/2026-05-07-03
+**Commits:** 6 (origin/main..plan/2026-05-07-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+
+---
+
+The new PII tree-scan mode does not preserve the existing allow-list semantics for exact line-content matches, so a documented recovery path for false positives fails.
+
+Review comment:
+
+- [P2] Filter tree-scan allow-lists against line content — scripts/check_pii.sh:116-117
+  When `--tree` is used with an anchored `.pii-allow` entry, e.g. `^path=<home>/project$`, this `git grep -n` output is passed through with the `HEAD:file:line:` prefix still attached, so `filter_allowed` no longer matches the documented offending line content. This makes the new tree scan keep failing after users add the suggested exact-line allow-list, and can also let allow-list patterns match file paths rather than the leaked text.
+
