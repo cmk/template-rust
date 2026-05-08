@@ -41,7 +41,24 @@ if git diff --quiet origin/main...HEAD; then
   exit 1
 fi
 
-if ! review_file=$(scripts/pr_report.py path); then
+review_file=''
+branch_review_files=()
+while IFS= read -r path; do
+  case "$path" in
+    doc/reviews/review-00000.md) ;;
+    doc/reviews/review-[0-9][0-9][0-9][0-9][0-9].md)
+      branch_review_files+=("$path")
+      ;;
+  esac
+done < <(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- 'doc/reviews/review-*.md' 2>/dev/null || true)
+
+if [ "${#branch_review_files[@]}" -eq 1 ]; then
+  review_file="${branch_review_files[0]}"
+elif [ "${#branch_review_files[@]}" -gt 1 ]; then
+  echo "error: multiple branch review files found:" >&2
+  printf '  %s\n' "${branch_review_files[@]}" >&2
+  exit 1
+elif ! review_file=$(scripts/pr_report.py path); then
   echo "error: could not determine review file path" >&2
   echo "  ensure gh is authenticated, or run scripts/pr_request.sh owner/name to diagnose GitHub access." >&2
   exit 1
