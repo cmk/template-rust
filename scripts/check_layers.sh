@@ -75,15 +75,16 @@ files_for_layer() {
 emit_import_hits() {
     local file="$1"
     local root_re="$2"
-    local line line_num=0 start_line=0 collecting=0 block=""
+    local line code_line line_num=0 start_line=0 collecting=0 block=""
     local use_re="^[[:space:]]*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?use[[:space:]]+(${root_re})::"
     local grouped_re="use[[:space:]]+(${root_re})::\\{"
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         ((line_num += 1))
+        code_line="${line%%//*}"
         if (( collecting )); then
-            block+=" $line"
-            if [[ "$line" == *";"* ]]; then
+            block+=" $code_line"
+            if [[ "$code_line" == *";"* ]]; then
                 printf '%s:%s\n' "$start_line" "$block"
                 collecting=0
                 block=""
@@ -91,15 +92,15 @@ emit_import_hits() {
             continue
         fi
 
-        if [[ "$line" =~ $use_re ]]; then
-            if [[ "$line" =~ $grouped_re ]] &&
-                [[ "$line" != *";"* ]]; then
+        if [[ "$code_line" =~ $use_re ]]; then
+            if [[ "$code_line" =~ $grouped_re ]] &&
+                [[ "$code_line" != *";"* ]]; then
                 collecting=1
                 start_line="$line_num"
-                block="$line"
+                block="$code_line"
                 continue
             fi
-            printf '%s:%s\n' "$line_num" "$line"
+            printf '%s:%s\n' "$line_num" "$code_line"
         fi
     done <"$file"
 

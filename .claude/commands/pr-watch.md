@@ -232,9 +232,9 @@ normally produce a `doc:` commit and are pushed.
 
 If `git push` fails (network, auth, non-fast-forward because someone
 else pushed), exit with the error and leave the round commit local.
-Record the failed `HEAD` in `.pr-watch/pr-<N>.push-failed-head` before
-exiting so the next tick's Step 0d can retry only that exact stranded
-round commit.
+Run `mkdir -p .pr-watch`, then record the failed `HEAD` in
+`.pr-watch/pr-<N>.push-failed-head` before exiting so the next tick's
+Step 0d can retry only that exact stranded round commit.
 
 **Never merge.** `gh pr merge` is a manual user step.
 

@@ -62,7 +62,8 @@ commits=$(git rev-list --count origin/main..HEAD)
 date=$(date +%F)
 
 tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
+sanitized_tmp=$(mktemp)
+trap 'rm -f "$tmp" "$sanitized_tmp"' EXIT
 
 # Record which prompt files codex sees, *before* invoking it, so the
 # fingerprint is guaranteed to match the version codex loads. (If we
@@ -79,6 +80,16 @@ fi
 # though help advertises both. AGENTS.md is discovered from the repo
 # root, so use the supported base-review invocation.
 codex review --base origin/main >"$tmp"
+python3 - "$repo_root" "$tmp" "$sanitized_tmp" <<'PY'
+from pathlib import Path
+import sys
+
+repo_root, src, dst = sys.argv[1:]
+text = Path(src).read_text(encoding="utf-8")
+text = text.replace(repo_root + "/", "")
+text = text.replace(repo_root, ".")
+Path(dst).write_text(text, encoding="utf-8")
+PY
 
 {
   printf '\n## Local review (%s)\n\n' "$date"
@@ -88,7 +99,7 @@ codex review --base origin/main >"$tmp"
   printf '**Prompt fingerprint:** AGENTS.md=%s calibration=%s\n\n' \
     "$agents_sha" "$calib_sha"
   printf '%s\n\n' '---'
-  cat "$tmp"
+  cat "$sanitized_tmp"
   printf '\n'
 } >>"$review_file"
 
