@@ -78,6 +78,45 @@ class CheckPiiTests(unittest.TestCase):
             self.assertIn("tree HEAD contains potential PII", result.stderr)
             self.assertIn(home_path, result.stderr)
 
+    def test_tree_mode_allowlist_matches_content_not_location(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            repo = Path(raw)
+            home_path = "/Users/" + "alice" + "/project"
+            git(repo, "init", "--initial-branch=main")
+            git(repo, "config", "user.name", "PII Test")
+            git(repo, "config", "user.email", "pii@example.invalid")
+
+            scripts = repo / "scripts"
+            scripts.mkdir()
+            script = scripts / "check_pii.sh"
+            script.write_text(CHECK_PII_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+            script.chmod(script.stat().st_mode | stat.S_IXUSR)
+            (repo / ".pii-allow").write_text(f"^path={home_path}$\n", encoding="utf-8")
+            (repo / "leak.txt").write_text(f"path={home_path}\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "allow exact fixture line")
+
+            allowed = subprocess.run(
+                [str(script), "--tree", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
+
+            (repo / ".pii-allow").write_text("leak.txt\n", encoding="utf-8")
+            git(repo, "add", ".pii-allow")
+            git(repo, "commit", "-m", "allow file path only")
+
+            path_only = subprocess.run(
+                [str(script), "--tree", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(path_only.returncode, 1)
+            self.assertIn(home_path, path_only.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
