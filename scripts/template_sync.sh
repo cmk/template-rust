@@ -59,6 +59,7 @@ VERBATIM_PATHS=(
   "scripts/pr_request.sh"
   "scripts/pr_reply.py"
   "scripts/pr_review.sh"
+  "scripts/template_sync.sh"
   "scripts/workflow_state.sh"
   ".githooks/pre-commit"
   ".githooks/pre-push"
@@ -78,6 +79,7 @@ VERBATIM_PATHS=(
   "tests/test_check_pii.py"
   "tests/test_pr_report.py"
   "tests/test_pr_review.py"
+  "tests/test_template_sync.py"
   "tests/test_workflow_state.py"
 )
 
@@ -220,7 +222,7 @@ report_one() {
       missing_count=$((missing_count + 1))
       if [ "$apply" = true ]; then
         mkdir -p "$(dirname "$dst")"
-        install -m "$(stat -f '%Lp' "$src" 2>/dev/null || stat -c '%a' "$src")" "$src" "$dst"
+        install -m "$(stat -c '%a' "$src" 2>/dev/null || stat -f '%Lp' "$src")" "$src" "$dst"
         applied_count=$((applied_count + 1))
       fi
       continue
@@ -234,7 +236,7 @@ report_one() {
       "$src" "$dst" | sed -n '1,40p' || true
     drift_count=$((drift_count + 1))
     if [ "$apply" = true ]; then
-      install -m "$(stat -f '%Lp' "$src" 2>/dev/null || stat -c '%a' "$src")" "$src" "$dst"
+      install -m "$(stat -c '%a' "$src" 2>/dev/null || stat -f '%Lp' "$src")" "$src" "$dst"
       applied_count=$((applied_count + 1))
     fi
   done

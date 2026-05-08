@@ -48,17 +48,18 @@ class TemplateSyncTests(unittest.TestCase):
         git(root, "config", "user.name", "Template Sync Test")
         git(root, "config", "user.email", "tst@example.invalid")
 
-        scripts = root / "scripts"
-        scripts.mkdir(parents=True, exist_ok=True)
-        sync = scripts / "template_sync.sh"
-        sync.write_text(self.script_text, encoding="utf-8")
-        sync.chmod(sync.stat().st_mode | stat.S_IXUSR)
-
-        # Populate every manifest path with a deterministic stub.
+        # Populate every manifest path with a deterministic stub. Then
+        # overwrite the entries that need real content (the script
+        # itself, and its regression test) so the manifest's
+        # self-references don't get clobbered with stubs.
         for rel in [*self.verbatim, *self.surgical]:
             p = root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(f"template stub: {rel}\n", encoding="utf-8")
+
+        sync = root / "scripts" / "template_sync.sh"
+        sync.write_text(self.script_text, encoding="utf-8")
+        sync.chmod(sync.stat().st_mode | stat.S_IXUSR)
 
         git(root, "add", ".")
         git(root, "commit", "-m", "template fixture")
