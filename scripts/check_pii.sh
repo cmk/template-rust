@@ -126,30 +126,31 @@ else
   load_tree_allow_patterns
 
   tree_report=''
-  while IFS= read -r -d '' f; do
-    case "$f" in
-      scripts/check_pii.sh|.pii-allow) continue ;;
-    esac
+  tree_matches=$(mktemp)
+  tree_errors=$(mktemp)
+  trap 'rm -f "$tree_matches" "$tree_errors"' EXIT
 
-    set +e
-    matches=$(git grep -I -n --no-color -h -E "$alt" "$tree_ref" -- "$f" 2>&1)
-    status=$?
-    set -e
-    if [ "$status" -eq 1 ]; then
-      continue
-    elif [ "$status" -ne 0 ]; then
-      echo "error: git grep failed while scanning tree $tree_ref:$f:" >&2
-      printf '%s\n' "$matches" >&2
-      exit 2
-    fi
-
-    while IFS= read -r match; do
-      line_no="${match%%:*}"
-      content="${match#*:}"
+  set +e
+  git grep -z -I -n --no-color -E "$alt" "$tree_ref" -- \
+    . ':(exclude)scripts/check_pii.sh' ':(exclude).pii-allow' \
+    >"$tree_matches" 2>"$tree_errors"
+  status=$?
+  set -e
+  if [ "$status" -eq 1 ]; then
+    :
+  elif [ "$status" -ne 0 ]; then
+    echo "error: git grep failed while scanning tree $tree_ref:" >&2
+    cat "$tree_errors" >&2
+    exit 2
+  else
+    while IFS= read -r -d '' location \
+      && IFS= read -r -d '' line_no \
+      && IFS= read -r content; do
+      path="${location#"$tree_ref:"}"
       [ -z "$(filter_allowed "$content")" ] && continue
-      tree_report+="    $tree_ref:$f:$line_no:$content"$'\n'
-    done <<< "$matches"
-  done < <(git ls-tree -r -z --name-only "$tree_ref" -- .)
+      tree_report+="    $tree_ref:$path:$line_no:$content"$'\n'
+    done < "$tree_matches"
+  fi
 
   if [ -n "$tree_report" ]; then
     report+="  $tree_ref:"$'\n'
