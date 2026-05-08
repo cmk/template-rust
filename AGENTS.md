@@ -29,6 +29,38 @@ forces every worktree to share one directory and reintroduces the
 lock. Verify with `cargo metadata --format-version 1 --no-deps | jq -r .target_directory`
 in two worktrees — different paths = safe.
 
+## Syncing downstream forks
+
+Downstream repos seeded from this template (one per workspace) drift
+on the workflow tooling that template-rust owns canonically: the
+scripts under `scripts/`, the git hooks, the Claude command playbooks,
+the audit docs, the calibration/workflow prose, and the Python
+regression suite. `scripts/template_sync.sh` is a manifest-driven
+manual sync — pull-mode (the maintainer runs it from this repo
+against one or more downstream paths), opt-in `--apply`. It reports
+match / drift / missing for the verbatim set, and match / differs for
+the surgical set, but never auto-edits surgical paths.
+
+Surgical paths the maintainer still owes by hand:
+`AGENTS.md`, `Cargo.toml`, `rust-toolchain.toml`, `rustfmt.toml`,
+`deny.toml`, `.github/workflows/ci.yml`. These encode project-specific
+facts — MSRV, crate names, layer rules, dependency policy — and need a
+human merge.
+
+Typical use:
+
+```
+# Read-only drift check across one or more downstream repos:
+scripts/template_sync.sh ../downstream-a ../downstream-b
+
+# After reviewing the report, land the verbatim subset:
+scripts/template_sync.sh --apply ../downstream-a
+```
+
+`--apply` refuses a dirty downstream tree so the resulting `git diff`
+is exactly the sync, ready to land via the normal
+`plan/YYYY-MM-DD-NN` branch in the downstream.
+
 ## Workflow Is a State Machine
 
 The TDD and review workflow is a finite state machine, not a menu of
