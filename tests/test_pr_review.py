@@ -37,7 +37,7 @@ class PrReviewTests(unittest.TestCase):
             script.write_text(PR_REVIEW_PATH.read_text(encoding="utf-8"), encoding="utf-8")
             script.chmod(script.stat().st_mode | stat.S_IXUSR)
             (scripts / "pr_report.py").write_text(
-                "#!/usr/bin/env sh\nprintf 'doc/reviews/review-00001.md\\n'\n",
+                "#!/usr/bin/env sh\nprintf 'doc/reviews/review-00002.md\\n'\n",
                 encoding="utf-8",
             )
             (scripts / "pr_report.py").chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
