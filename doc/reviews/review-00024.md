@@ -97,3 +97,18 @@ Review comment:
 - [P2] Preserve block-comment state across import lines — scripts/check_layers.sh:127-127
   Because `strip_rust_comments_from_line` is invoked through command substitution here, its updates to `in_block_comment` happen in a subshell and are lost before the next input line. When a grouped `use` contains a multi-line block comment with a semicolon before a forbidden layer import, collection stops on the commented semicolon and the later import is never inspected, so `scripts/check_layers.sh` can report OK for a valid Rust import that violates the layer order.
 
+## Local review (2026-05-07)
+
+**Branch:** plan/2026-05-07-03
+**Commits:** 10 (origin/main..plan/2026-05-07-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+
+---
+
+The layer-check hardening still introduces a bypass for valid Rust grouped imports containing nested block comments, so the CI layer gate can miss forbidden imports.
+
+Review comment:
+
+- [P2] Support nested block comments while stripping imports — scripts/check_layers.sh:107-108
+  When a grouped `use` contains a nested Rust block comment, this clears `in_block_comment` at the inner `*/` even though the outer comment is still open. A semicolon that remains inside the outer comment can then terminate collection before the later imports are parsed, so a valid import like `/* outer /* inner; */ still outer; */ test,` lets `conn` import the higher `test` layer without `scripts/check_layers.sh` failing.
+
