@@ -73,49 +73,67 @@ files_for_layer() {
 }
 
 strip_rust_comments_from_line() {
-    local rest="$1" output="" line_prefix block_prefix close_prefix line_pos block_pos close_pos
+    local rest="$1" output="" ch raw_end raw_prefix
 
     while [[ -n "$rest" ]]; do
         if (( block_comment_depth > 0 )); then
-            block_prefix="${rest%%/\**}"
-            close_prefix="${rest%%\*/*}"
-            block_pos=-1
-            close_pos=-1
-            [[ "$block_prefix" != "$rest" ]] && block_pos=${#block_prefix}
-            [[ "$close_prefix" != "$rest" ]] && close_pos=${#close_prefix}
-
-            if (( block_pos == -1 && close_pos == -1 )); then
-                break
-            fi
-            if (( block_pos != -1 && (close_pos == -1 || block_pos < close_pos) )); then
-                rest="${rest#*/\*}"
+            if [[ "$rest" == '/*'* ]]; then
+                rest="${rest:2}"
                 block_comment_depth=$((block_comment_depth + 1))
-            else
-                rest="${rest#*\*/}"
+            elif [[ "$rest" == '*/'* ]]; then
+                rest="${rest:2}"
                 block_comment_depth=$((block_comment_depth - 1))
+            else
+                rest="${rest:1}"
             fi
             continue
         fi
 
-        line_prefix="${rest%%//*}"
-        block_prefix="${rest%%/\**}"
-        line_pos=-1
-        block_pos=-1
-        [[ "$line_prefix" != "$rest" ]] && line_pos=${#line_prefix}
-        [[ "$block_prefix" != "$rest" ]] && block_pos=${#block_prefix}
-
-        if (( line_pos == -1 && block_pos == -1 )); then
-            output+="$rest"
-            break
-        fi
-        if (( line_pos != -1 && (block_pos == -1 || line_pos < block_pos) )); then
-            output+="$line_prefix"
-            break
+        if (( in_raw_string )); then
+            raw_end="\"$raw_string_hashes"
+            if [[ "${rest:0:${#raw_end}}" == "$raw_end" ]]; then
+                rest="${rest:${#raw_end}}"
+                in_raw_string=0
+                raw_string_hashes=""
+            else
+                rest="${rest:1}"
+            fi
+            continue
         fi
 
-        output+="$block_prefix"
-        rest="${rest#*/\*}"
-        block_comment_depth=1
+        if (( in_string )); then
+            if (( string_escape )); then
+                string_escape=0
+            elif [[ "$rest" == "\\"* ]]; then
+                string_escape=1
+            elif [[ "$rest" == '"'* ]]; then
+                in_string=0
+            fi
+            rest="${rest:1}"
+            continue
+        fi
+
+        if [[ "$rest" == '//'* ]]; then
+            break
+        elif [[ "$rest" == '/*'* ]]; then
+            rest="${rest:2}"
+            block_comment_depth=1
+        elif [[ "$rest" =~ ^(b?r)(#*)\" ]]; then
+            raw_prefix="${BASH_REMATCH[0]}"
+            raw_string_hashes="${BASH_REMATCH[2]}"
+            output+='""'
+            rest="${rest:${#raw_prefix}}"
+            in_raw_string=1
+        elif [[ "$rest" == '"'* ]]; then
+            output+='""'
+            rest="${rest:1}"
+            in_string=1
+            string_escape=0
+        else
+            ch="${rest:0:1}"
+            output+="$ch"
+            rest="${rest:1}"
+        fi
     done
 
     stripped_line="$output"
@@ -124,7 +142,8 @@ strip_rust_comments_from_line() {
 emit_import_hits() {
     local file="$1"
     local root_re="$2"
-    local line code_line stripped_line line_num=0 start_line=0 collecting=0 block="" block_comment_depth=0
+    local line code_line stripped_line line_num=0 start_line=0 collecting=0 block=""
+    local block_comment_depth=0 in_string=0 string_escape=0 in_raw_string=0 raw_string_hashes=""
     local use_re="^[[:space:]]*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?use[[:space:]]+(${root_re})::"
     local grouped_re="use[[:space:]]+(${root_re})::\\{"
 
