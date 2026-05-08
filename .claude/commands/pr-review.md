@@ -50,11 +50,14 @@ Refresh the ref and confirm the branch has diverged:
 
 ```
 git fetch --quiet origin main
-git diff origin/main...HEAD >/dev/null && echo "no diff to review" || true
+if git diff --quiet origin/main...HEAD; then
+  echo "no diff to review" && exit 1
+fi
 ```
 
-If `git diff --quiet origin/main...HEAD` exits 0, abort — there's
-nothing to review.
+`git diff --quiet` exits 0 when there is no diff — that's the abort
+condition. Plain `git diff` always exits 0 on a successful run and
+would not detect divergence.
 
 **Verify the review file exists.** `pr_review.sh` appends to a file
 created by TDD step 7; it never creates the file itself. Get its
