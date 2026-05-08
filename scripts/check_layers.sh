@@ -112,19 +112,20 @@ strip_rust_comments_from_line() {
         fi
     done
 
-    printf '%s' "$output"
+    stripped_line="$output"
 }
 
 emit_import_hits() {
     local file="$1"
     local root_re="$2"
-    local line code_line line_num=0 start_line=0 collecting=0 block="" in_block_comment=0
+    local line code_line stripped_line line_num=0 start_line=0 collecting=0 block="" in_block_comment=0
     local use_re="^[[:space:]]*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?use[[:space:]]+(${root_re})::"
     local grouped_re="use[[:space:]]+(${root_re})::\\{"
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         ((line_num += 1))
-        code_line="$(strip_rust_comments_from_line "$line")"
+        strip_rust_comments_from_line "$line"
+        code_line="$stripped_line"
         if (( collecting )); then
             block+=" $code_line"
             if [[ "$code_line" == *";"* ]]; then
