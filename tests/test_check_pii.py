@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -145,6 +147,61 @@ class CheckPiiTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn(home_path, result.stderr)
+
+    def test_tree_mode_invokes_one_git_grep_for_whole_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            repo = Path(raw)
+            home_path = "/Users/" + "alice" + "/project"
+            real_git = shutil.which("git")
+            self.assertIsNotNone(real_git)
+            git(repo, "init", "--initial-branch=main")
+            git(repo, "config", "user.name", "PII Test")
+            git(repo, "config", "user.email", "pii@example.invalid")
+
+            scripts = repo / "scripts"
+            scripts.mkdir()
+            script = scripts / "check_pii.sh"
+            script.write_text(CHECK_PII_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+            script.chmod(script.stat().st_mode | stat.S_IXUSR)
+            (repo / "README.md").write_text("safe\n", encoding="utf-8")
+            (repo / "leak_one.txt").write_text(f"path={home_path}/one\n", encoding="utf-8")
+            (repo / "leak_two.txt").write_text(f"path={home_path}/two\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "commit multiple leaks")
+
+            bin_dir = repo / "bin"
+            bin_dir.mkdir()
+            log = repo / "grep.log"
+            wrapper = bin_dir / "git"
+            wrapper.write_text(
+                (
+                    "#!/usr/bin/env sh\n"
+                    "if [ \"$1\" = \"grep\" ]; then\n"
+                    "  printf '%s\\n' \"$*\" >> \"$GIT_GREP_LOG\"\n"
+                    "fi\n"
+                    "exec \"$REAL_GIT\" \"$@\"\n"
+                ),
+                encoding="utf-8",
+            )
+            wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+            env["REAL_GIT"] = real_git or "git"
+            env["GIT_GREP_LOG"] = str(log)
+
+            result = subprocess.run(
+                [str(script), "--tree", "HEAD"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("leak_one.txt", result.stderr)
+            self.assertIn("leak_two.txt", result.stderr)
+            self.assertEqual(log.read_text(encoding="utf-8").count("\n"), 1)
 
 
 if __name__ == "__main__":
