@@ -189,3 +189,68 @@ the sign convention through two definitions and shows the contradiction.
 *should* agree but don't. Names the specific parameter space where they
 diverge, and explains the observable consequence. This is the kind of
 cross-system bug that unit tests per-system would never catch.
+
+---
+
+## Pattern 9: Type claims a law the impl doesn't satisfy
+
+> **File:** `crates/foo-core/src/byte/four.rs`
+>
+> **Diff context:**
+> ```
+> +crate::iso! {
+> +    pub F032OBYT : f32 => Bytes<4> {
+> +        forward: f32_to_obyt,
+> +        back:    obyt_to_f32,
+> +    }
+> +}
+> +// In tests:
+> +proptest_battery_iso_total!(F032OBYT, arb_f32(), arb_byte4());
+> ```
+>
+> **Comment:** `iso!` declares `F032OBYT: ConnK<f32, Bytes<4>>` — a
+> both-sided Galois connection over `<=`. The proptest battery was
+> renamed `*_iso_total` (`f32::total_cmp`) because the `<=`
+> predicate fails on bytes that decode to NaN. The rename masks a
+> type-level violation: `iso!` still claims the `<=` law, which the
+> impl doesn't satisfy. Either weaken the declaration to `conn_l!`
+> over a NaN-aware host (e.g. a `NonNan` newtype or a totalOrder
+> byte-newtype), or drop the float Conns until a sound shape exists.
+
+**Why this is good:** Catches the real bug — a *type-system claim*
+the impl doesn't satisfy — by reading the type declaration and the
+test rename together. Generalizes off the `iso!` axis to any
+contract claim: a `Lattice` impl with a `meet` that isn't idempotent
+on a sentinel row, an `Ord` impl that isn't total on empty strings,
+a `Hash` / `Eq` pair that disagrees on NaN. The reviewer's job is
+to read the type the diff still ships, not the predicate the test
+was renamed to.
+
+---
+
+## Pattern 10: Plan §Review pre-frames the bug as a "test deviation"
+
+> **Plan §Review excerpt:**
+> ```
+> f32 Galois harnesses use `total_cmp` because the classical
+> predicate fails on NaN. All N proptests pass under this shape.
+> ```
+>
+> **Diff context:** the `iso!` declaration is unchanged; the
+> proptest battery is the only thing that moved.
+>
+> **Comment:** This §Review note is the ratification trap. The
+> author has framed the relaxation as a property of the *test*,
+> but the *type* still claims the unrelaxed law. Promoting this
+> to must-fix: name the type-level claim, name what the impl
+> actually satisfies, and require either the declaration to weaken
+> or the float Conns to drop. "All proptests pass under this shape"
+> is a fact about the harness, not about the type.
+
+**Why this is good:** Refuses to nod at §Review framing. The plan
+author's retro is presumed adversarial — the reviewer's job is to
+go to the diff and verify, not to accept the explanation. The "all
+N tests pass" sentence is particularly load-bearing: it sounds like
+coverage, but it's coverage of the weakened predicate, not the
+type's claim. The fix is the same whether the §Review excused it
+or not.
