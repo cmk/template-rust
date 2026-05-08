@@ -64,19 +64,21 @@ date=$(date +%F)
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
-# Codex CLI 0.125 rejects a custom prompt together with --base, even
-# though help advertises both. AGENTS.md is discovered from the repo
-# root, so use the supported base-review invocation.
-codex review --base origin/main >"$tmp"
-
-# Record which prompt files codex saw, so a review can be traced back
-# to its prompt version after AGENTS.md or calibration.md drift.
+# Record which prompt files codex sees, *before* invoking it, so the
+# fingerprint is guaranteed to match the version codex loads. (If we
+# computed after the run, a concurrent edit between codex's read and
+# our hash would silently desync.) This is the version codex saw.
 agents_sha=$(git hash-object AGENTS.md 2>/dev/null || echo missing)
 if [ -f doc/reviews/calibration.md ]; then
   calib_sha=$(git hash-object doc/reviews/calibration.md)
 else
   calib_sha=missing
 fi
+
+# Codex CLI 0.125 rejects a custom prompt together with --base, even
+# though help advertises both. AGENTS.md is discovered from the repo
+# root, so use the supported base-review invocation.
+codex review --base origin/main >"$tmp"
 
 {
   printf '\n## Local review (%s)\n\n' "$date"
