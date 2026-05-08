@@ -38,8 +38,8 @@ the audit docs, the calibration/workflow prose, and the Python
 regression suite. `scripts/template_sync.sh` is a manifest-driven
 manual sync — pull-mode (the maintainer runs it from this repo
 against one or more downstream paths), opt-in `--apply`. It reports
-match / drift / missing for the verbatim set, and match / differs for
-the surgical set, but never auto-edits surgical paths.
+match / drift / missing for the verbatim set, and match / differs /
+missing for the surgical set, but never auto-edits surgical paths.
 
 Surgical paths the maintainer still owes by hand:
 `AGENTS.md`, `Cargo.toml`, `rust-toolchain.toml`, `rustfmt.toml`,

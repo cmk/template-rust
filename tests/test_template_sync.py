@@ -48,18 +48,31 @@ class TemplateSyncTests(unittest.TestCase):
         git(root, "config", "user.name", "Template Sync Test")
         git(root, "config", "user.email", "tst@example.invalid")
 
-        # Populate every manifest path with a deterministic stub. Then
-        # overwrite the entries that need real content (the script
-        # itself, and its regression test) so the manifest's
-        # self-references don't get clobbered with stubs.
+        # Populate every manifest path with a deterministic stub.
         for rel in [*self.verbatim, *self.surgical]:
             p = root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(f"template stub: {rel}\n", encoding="utf-8")
 
+        # Overwrite the script entry with the real script content so
+        # the manifest's self-reference doesn't run a stub. The
+        # regression test stays a stub — the test isn't executed by
+        # the script under test, so it doesn't need real content.
         sync = root / "scripts" / "template_sync.sh"
         sync.write_text(self.script_text, encoding="utf-8")
         sync.chmod(sync.stat().st_mode | stat.S_IXUSR)
+
+        # Mark a hook file executable so test_apply_preserves_exec_bit
+        # can verify the install -m mode round-trip.
+        for hook in (".githooks/pre-commit", ".githooks/pre-push"):
+            hp = root / hook
+            hp.chmod(hp.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
+
+        # The marker file lives at the template root only; it must
+        # not be in the manifest, so it's added explicitly here.
+        (root / ".template-rust-root").write_text(
+            "template fixture marker\n", encoding="utf-8"
+        )
 
         git(root, "add", ".")
         git(root, "commit", "-m", "template fixture")
@@ -170,6 +183,36 @@ class TemplateSyncTests(unittest.TestCase):
                 "SURGICAL DRIFT\n",
             )
             self.assertIn("differs (surgical merge required)", r.stdout)
+
+    def test_apply_preserves_exec_bit_on_hook(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            tmp = Path(raw)
+            template = tmp / "template"
+            downstream = tmp / "downstream"
+            self._make_template(template)
+            self._make_downstream(downstream, template)
+
+            hook = ".githooks/pre-commit"
+            # Strip exec bits on the downstream copy and make its
+            # content drift so --apply must rewrite the file.
+            (downstream / hook).chmod(0o644)
+            (downstream / hook).write_text("downstream drift\n", encoding="utf-8")
+            git(downstream, "add", hook)
+            git(downstream, "commit", "-m", "downstream drift on hook")
+
+            r = self._run_sync(template, "--apply", str(downstream))
+
+            self.assertEqual(r.returncode, 0, msg=f"stderr={r.stderr!r}")
+            applied_mode = (downstream / hook).stat().st_mode
+            template_mode = (template / hook).stat().st_mode
+            self.assertEqual(
+                stat.S_IMODE(applied_mode), stat.S_IMODE(template_mode),
+                msg="--apply should preserve template's file mode (exec bit)",
+            )
+            self.assertTrue(
+                applied_mode & stat.S_IXUSR,
+                msg="hook should be executable after --apply",
+            )
 
     def test_apply_refuses_dirty_downstream(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

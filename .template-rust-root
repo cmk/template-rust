@@ -1,0 +1,8 @@
+This file marks the template-rust working tree.
+
+scripts/template_sync.sh refuses to run if this marker is missing,
+which prevents a stale copy of the script in a downstream repo from
+treating that downstream as the template source-of-truth.
+
+This file is intentionally NOT in the script's VERBATIM_PATHS or
+SURGICAL_PATHS manifest — downstream repos must NOT receive a copy.

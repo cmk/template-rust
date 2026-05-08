@@ -68,6 +68,7 @@ VERBATIM_PATHS=(
   ".claude/commands/pr-review.md"
   ".claude/commands/pr-watch.md"
   "doc/audits/README.md"
+  "doc/audits/coverage.md"
   "doc/audits/docrot.md"
   "doc/audits/hygiene.md"
   "doc/audits/pii.md"
@@ -138,9 +139,15 @@ script_dir=$(cd "$(dirname "$0")" && pwd -P)
 template_root=$(cd "$script_dir/.." && pwd -P)
 
 # Refuse to run from a worktree that isn't this template repo. The
-# script reads template content from `$template_root`; if the user
-# accidentally invoked it via a symlink from a downstream repo, the
-# "template" side would be whatever stale copy lives there.
+# script reads template content from `$template_root`; if a stale
+# copy of the script lives inside a downstream repo (e.g. delivered
+# by a previous --apply) and is invoked from there, the "template"
+# side would be whatever stale content lives in that downstream.
+#
+# Two-step guard: (1) script's parent must be a git toplevel,
+# (2) that toplevel must contain the `.template-rust-root` marker.
+# The marker is intentionally excluded from VERBATIM_PATHS /
+# SURGICAL_PATHS so downstream repos never receive a copy.
 if ! template_git_root=$(git -C "$template_root" rev-parse --show-toplevel 2>/dev/null); then
   echo "template_sync.sh: $template_root is not a git working tree." >&2
   exit 2
@@ -149,6 +156,11 @@ if [ "$template_git_root" != "$template_root" ]; then
   echo "template_sync.sh: script must run from the template-rust working tree." >&2
   echo "  resolved template root: $template_root" >&2
   echo "  git toplevel:           $template_git_root" >&2
+  exit 2
+fi
+if [ ! -f "$template_root/.template-rust-root" ]; then
+  echo "template_sync.sh: $template_root is missing the .template-rust-root marker." >&2
+  echo "  this script must run from the canonical template-rust repo, not a stale downstream copy." >&2
   exit 2
 fi
 
@@ -214,8 +226,9 @@ report_one() {
     src="$template_root/$rel"
     dst="$downstream/$rel"
     if [ ! -e "$src" ]; then
-      echo "  $rel: SKIP (manifest entry missing in template)" >&2
-      continue
+      echo "template_sync.sh: manifest entry missing in template: $rel" >&2
+      echo "  the manifest and template must stay in sync; aborting." >&2
+      exit 2
     fi
     if [ ! -e "$dst" ]; then
       printf '  %s: missing downstream\n' "$rel"
@@ -245,7 +258,9 @@ report_one() {
     src="$template_root/$rel"
     dst="$downstream/$rel"
     if [ ! -e "$src" ]; then
-      continue
+      echo "template_sync.sh: manifest entry missing in template: $rel" >&2
+      echo "  the manifest and template must stay in sync; aborting." >&2
+      exit 2
     fi
     if [ ! -e "$dst" ]; then
       printf '  %s: missing downstream (surgical — not auto-copied)\n' "$rel"
