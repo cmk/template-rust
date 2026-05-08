@@ -348,6 +348,46 @@ lifecycle and the `/pr-watch` loop — useful when debugging an
 unexpected situation (stuck fix commit, loop that won't quit). The
 prose below is authoritative; the diagrams are derived views.
 
+### Review skepticism (read this every time)
+
+The reviewer's job is to verify the diff against the contracts the
+diff still ships, not to ratify the plan author's framing.
+
+**Trait-claim audit (do this first, before anything else).** For
+every new or changed `pub const` of a Galois-connection or
+order-theoretic type, every `iso!` / `conn_l!` / `conn_r!` /
+`compose!` / `triple!` invocation, and every non-derived `Lattice` /
+`Heyting` / `Boolean` / `Ord` / `PartialOrd` / `Hash` / `Eq` impl in
+the diff:
+
+  1. Quote the law the type or trait declaration claims.
+  2. Quote the closures or arms in the impl.
+  3. State whether (1) and (2) are consistent.
+
+The audit log is mandatory output even when every item is
+consistent. "All consistent" with no log is a missed audit, not a
+clean audit.
+
+**Test-exception escalation.** Any test renamed with a relaxation
+suffix (`*_total`, `*_relaxed`, `*_partial`, `*_weak`), any "we use
+a weaker predicate", "this case is excluded", "saturates instead
+of", "deferred", or "exception" in the diff or the plan, means the
+author found the strong predicate fails. Until the type declaration
+was *also* weakened, the strong predicate is still what the type
+claims — that gap is `must-fix`, not a test deviation.
+
+**The plan §Review / Retrospective / Conclusion is presumed
+adversarial framing.** It is the highest-value ratification trap:
+the author has already thought about the diff and written down the
+sentence they want the reviewer to nod at. Treat every claim in
+those sections — "all N lib tests pass under this shape", "tolerated
+via monotone-with-equality", "the test rename is fine because…" —
+as **bullshit until proven otherwise** by going to the diff and
+checking. The plan is read *after* the cold review, not before.
+Anything in §Review that explains away a relaxation or a deferred
+case must be promoted to a must-fix audit unless the type
+declaration was also weakened to match.
+
 ### Tier 1 — Local Review (pre-push)
 
 The coding agent makes atomic commits as it works. Commits can be as
