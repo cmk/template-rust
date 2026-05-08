@@ -33,6 +33,7 @@ class CheckLayersTests(unittest.TestCase):
                         "//! depends-on:",
                         "use crate::{",
                         "    // the semicolon in this comment; is not the group terminator",
+                        "    /* this block comment; is not the group terminator either */",
                         "    helper::{self, value},",
                         "    test,",
                         "};",

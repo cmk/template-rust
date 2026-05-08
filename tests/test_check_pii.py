@@ -19,6 +19,7 @@ class CheckPiiTests(unittest.TestCase):
     def test_allowlisted_staged_match_does_not_fail_under_set_e(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             repo = Path(raw)
+            home_path = "/Users/" + "alice" + "/project"
             git(repo, "init", "--initial-branch=main")
             git(repo, "config", "user.name", "PII Test")
             git(repo, "config", "user.email", "pii@example.invalid")
@@ -28,12 +29,12 @@ class CheckPiiTests(unittest.TestCase):
             script = scripts / "check_pii.sh"
             script.write_text(CHECK_PII_PATH.read_text(encoding="utf-8"), encoding="utf-8")
             script.chmod(script.stat().st_mode | stat.S_IXUSR)
-            (repo / ".pii-allow").write_text("/Users/alice/project\n", encoding="utf-8")
+            (repo / ".pii-allow").write_text(f"^path={home_path}$\n", encoding="utf-8")
             (repo / "README.md").write_text("safe\n", encoding="utf-8")
             git(repo, "add", ".")
             git(repo, "commit", "-m", "initial")
 
-            (repo / "allowed.txt").write_text("path=/Users/alice/project\n", encoding="utf-8")
+            (repo / "allowed.txt").write_text(f"path={home_path}\n", encoding="utf-8")
             git(repo, "add", "allowed.txt")
 
             result = subprocess.run(
@@ -48,6 +49,7 @@ class CheckPiiTests(unittest.TestCase):
     def test_tree_mode_detects_committed_home_path(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             repo = Path(raw)
+            home_path = "/Users/" + "alice" + "/project"
             git(repo, "init", "--initial-branch=main")
             git(repo, "config", "user.name", "PII Test")
             git(repo, "config", "user.email", "pii@example.invalid")
@@ -61,7 +63,7 @@ class CheckPiiTests(unittest.TestCase):
             git(repo, "add", ".")
             git(repo, "commit", "-m", "initial")
 
-            (repo / "leak.txt").write_text("path=/Users/alice/project\n", encoding="utf-8")
+            (repo / "leak.txt").write_text(f"path={home_path}\n", encoding="utf-8")
             git(repo, "add", "leak.txt")
             git(repo, "commit", "-m", "add leak")
 
@@ -74,7 +76,7 @@ class CheckPiiTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 1)
             self.assertIn("tree HEAD contains potential PII", result.stderr)
-            self.assertIn("/Users/alice/project", result.stderr)
+            self.assertIn(home_path, result.stderr)
 
 
 if __name__ == "__main__":

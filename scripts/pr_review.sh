@@ -81,6 +81,7 @@ fi
 # root, so use the supported base-review invocation.
 codex review --base origin/main >"$tmp"
 python3 - "$repo_root" "$tmp" "$sanitized_tmp" <<'PY'
+import re
 from pathlib import Path
 import sys
 
@@ -88,6 +89,8 @@ repo_root, src, dst = sys.argv[1:]
 text = Path(src).read_text(encoding="utf-8")
 text = text.replace(repo_root + "/", "")
 text = text.replace(repo_root, ".")
+text = re.sub(r"/Users/[A-Za-z0-9._-]+/", "<home>/", text)
+text = re.sub(r"/home/[A-Za-z0-9._-]+/", "<home>/", text)
 Path(dst).write_text(text, encoding="utf-8")
 PY
 
