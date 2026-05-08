@@ -51,22 +51,31 @@ Do **not** touch it.
 ```
 git fetch --quiet origin "$branch" || true
 unpushed=$(git log "origin/$branch..HEAD" --oneline)
+failed_head_file=".pr-watch/pr-<N>.push-failed-head"
+head=$(git rev-parse HEAD)
 ```
 
-If `unpushed` is non-empty, a previous tick's `git push` (Step 5)
-failed and the round commit is stranded locally. Try one push to
-recover:
+If `unpushed` is non-empty, only auto-retry when
+`.pr-watch/pr-<N>.push-failed-head` exists and equals the current
+`HEAD`. That marker means the stranded local commit is the exact commit
+whose push failed in an earlier `/pr-watch` tick. Without the marker, or
+if it names a different SHA, exit with:
+`paused at round_unpushed: unpushed commit is not a recorded pr-watch
+push failure`.
+
+When the marker matches, try one push to recover:
 
 ```
 git push origin "$branch"
 ```
 
 If the push succeeds, continue to Step 1 (the round is now
-`gh_review`; subsequent activity is what we're polling for). If it
-fails again, exit with one line: `paused at round_unpushed: push
-failed (<error>)`. Do not poll, do not fix, do not reply — surface
-the issue and let the user investigate. The next loop tick will
-retry.
+`gh_review`; subsequent activity is what we're polling for) and remove
+the marker. If it fails again, rewrite the marker with the current
+`HEAD` and exit with one line: `paused at round_unpushed: push failed
+(<error>)`. Do not poll, do not fix, do not reply — surface the issue
+and let the user investigate. The next loop tick will retry the same
+recorded failed head.
 
 ## Step 1: Poll for new activity
 
@@ -102,6 +111,13 @@ new top-level thread, classify it into exactly one bucket:
 wrong code; a miscategorized ask only delays a round by one loop tick
 until the user resolves it.
 
+Apply AGENTS.md's
+[Be a Good Gardener](../../AGENTS.md#be-a-good-gardener) rule during
+triage. Labels such as "optional", "nit", "follow-up", suppressed, or
+low-confidence do not lower the seriousness of a correct comment. Fix
+small local items now; defer only when the fix is large, complex,
+outside scope, or incorrect.
+
 Track two counters for the commit step:
 
 ```
@@ -133,9 +149,9 @@ doc) is committed once in Step 4 as a single atomic commit. This
 matches the FSM in `doc/workflow.md`: `items_pulled → round_unpushed`
 is a single transition; there is no intermediate `fix_unpushed` state.
 
-If no auto-fix items apply (all push-back / defer / ask), the working
-tree stays clean and Step 4's commit will be `doc:`-prefixed (mirror
-only).
+If no auto-fix items apply (all push-back / defer / ask), Step 4's
+commit will be `doc:`-prefixed when the only staged change is the
+review mirror.
 
 ## Step 4: Post replies, mirror, and commit the round atomically
 
@@ -153,29 +169,23 @@ for each thread: scripts/pr_reply.py <N> <in_reply_to_id> "<body>"
 # Mirror replies back into the review doc
 scripts/pr_report.py reviews <N>
 
-# Single atomic commit: code edits (if any) + mirrored replies.
-# If every new item was `ask`, do not stage or keep the pull-only
-# review-doc delta from Step 1; restore doc/reviews/ so the next tick
-# still starts from a clean tree.
-if [ "$auto_fix_count" -eq 0 ] && [ "$reply_count" -eq 0 ]; then
-    git restore --source=HEAD --worktree -- doc/reviews
+# Single atomic commit: code edits (if any) + mirrored review doc.
+# Ask-only rounds still keep the pull-only review-doc delta from Step 1.
+git add -A
+if git diff --cached --quiet; then
+    # Nothing staged — branch stays at gh_review. Step 5's
+    # "no commit" report branch fires.
+    :
 else
-    git add -A
-    if git diff --cached --quiet; then
-        # Nothing staged — branch stays at gh_review. Step 5's
-        # "no commit" report branch fires.
-        :
+    # Pick prefix based on staged content:
+    #   fix:  any staged change outside doc/reviews/*.md
+    #   doc:  only doc/reviews/<file>.md changed (mirror/replies-only round)
+    if git diff --cached --name-only | grep -Eqv '^doc/reviews/.*\.md$'; then
+        commit_prefix=fix
     else
-        # Pick prefix based on staged content:
-        #   fix:  any staged change outside doc/reviews/*.md
-        #   doc:  only doc/reviews/<file>.md changed (replies-only round)
-        if git diff --cached --name-only | grep -Eqv '^doc/reviews/.*\.md$'; then
-            commit_prefix=fix
-        else
-            commit_prefix=doc
-        fi
-        git commit -m "$commit_prefix: Address review feedback on PR #<N>"
+        commit_prefix=doc
     fi
+    git commit -m "$commit_prefix: Address review feedback on PR #<N>"
 fi
 ```
 
@@ -215,14 +225,16 @@ review the PR as a whole before invoking `gh pr merge` /
 `scripts/git_merge.sh`. A round commit reaching origin without
 their merge is the normal mid-PR state, not a risk to gate on.
 
-If Step 4 produced no commit (no auto-fix items AND no replies
-posted — every item was `ask`), skip this step. There is nothing to
-push. The branch stays at `gh_review` (its original state).
+If Step 4 produced no commit, skip this step. There is nothing to push.
+That should now mean Step 1 had no doc delta and no replies/code edits
+were produced; ask-only rounds with newly mirrored review comments
+normally produce a `doc:` commit and are pushed.
 
 If `git push` fails (network, auth, non-fast-forward because someone
 else pushed), exit with the error and leave the round commit local.
-The next tick's Step 0d will see the unpushed commit and surface the
-state to the user.
+Record the failed `HEAD` in `.pr-watch/pr-<N>.push-failed-head` before
+exiting so the next tick's Step 0d can retry only that exact stranded
+round commit.
 
 **Never merge.** `gh pr merge` is a manual user step.
 
@@ -247,8 +259,7 @@ pr-watch PR #<N> — round complete at gh_review (commit pushed)
                `gh pr merge` / `scripts/git_merge.sh` when ready.
 ```
 
-If Step 4 produced no commit (no auto-fix items AND no replies
-posted — all items were `ask`):
+If Step 4 produced no commit:
 
 ```
 pr-watch PR #<N> — round complete at gh_review (no commit needed)
@@ -257,7 +268,7 @@ pr-watch PR #<N> — round complete at gh_review (no commit needed)
   deferred:    0
   needs you:   <count>
     - path:line — one-line summary
-  round commit: none — all items classified as `ask`, no replies posted
+  round commit: none — no staged code, replies, or review-doc delta
   next step:   PR is mergeable when reviewers stop posting.
 ```
 
@@ -292,6 +303,11 @@ ticks that exited at Step 0d (push_failed, after recovery push also
 failed), Step 1 (no new activity), or Step 4 with nothing posted.
 Any tick that addressed activity (and pushed successfully) resets
 the counter to 0.
+
+Push-failure recovery uses a separate
+`.pr-watch/pr-<N>.push-failed-head` marker containing the exact failed
+commit SHA. Remove it after a successful recovery push or successful
+Step 5 push.
 
 ### Decision
 

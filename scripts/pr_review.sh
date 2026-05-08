@@ -92,4 +92,10 @@ codex review --base origin/main >"$tmp"
   printf '\n'
 } >>"$review_file"
 
-printf 'local review appended: %s\n' "$review_file"
+git add -- "$review_file"
+if git diff --cached --quiet; then
+  printf 'local review appended with no staged delta: %s\n' "$review_file"
+else
+  git commit -m "doc: Append local review"
+  printf 'local review committed: %s\n' "$review_file"
+fi

@@ -14,8 +14,43 @@
 # explicit and reviewable. `/home/runner/` paths in CI docs are a
 # typical allow-list candidate.
 #
-# Runtime is O(diff), not O(repo).
+# Default runtime is O(diff), not O(repo). `--tree <ref>` scans a committed
+# tree when checking history or CI state after a bypassed hook.
 set -euo pipefail
+
+usage() {
+  cat >&2 <<'USAGE'
+usage:
+  scripts/check_pii.sh
+  scripts/check_pii.sh --tree <rev-or-ref>
+
+Without arguments, scan added lines in the staged diff. With --tree,
+scan tracked file content in the named committed tree.
+USAGE
+}
+
+mode=staged
+tree_ref=''
+if [ $# -gt 0 ]; then
+  case "${1:-}" in
+    --tree)
+      if [ $# -ne 2 ]; then
+        usage
+        exit 2
+      fi
+      mode=tree
+      tree_ref="$2"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+fi
 
 patterns=(
   '/Users/[a-zA-Z0-9._-]+/'
@@ -27,46 +62,93 @@ patterns=(
 )
 alt=$(IFS='|'; echo "${patterns[*]}")
 
-report=''
-# ACMR = Added / Copied / Modified / Renamed; excludes pure deletions.
-# The script and the allow-list itself are skipped so self-inclusion
-# of the patterns doesn't trip the check.
-#
-# Read names via NUL terminators so paths with spaces/newlines survive.
-while IFS= read -r -d '' f; do
-  [ -z "$f" ] && continue
-  added=$(git diff --cached -U0 --no-color -- "$f" \
-    | grep -E '^\+[^+]' | sed 's/^+//' || true)
-  [ -z "$added" ] && continue
-
-  matches=$(printf '%s\n' "$added" | grep -E "$alt" || true)
-  [ -z "$matches" ] && continue
+filter_allowed() {
+  local input="$1"
+  [ -z "$input" ] && return 0
 
   if [ -f .pii-allow ]; then
     allow_patterns=$(grep -vE '^[[:space:]]*(#|$)' .pii-allow || true)
     if [ -n "$allow_patterns" ]; then
-      matches=$(printf '%s\n' "$matches" \
+      input=$(printf '%s\n' "$input" \
         | grep -vE -f <(printf '%s\n' "$allow_patterns") || true)
     fi
   fi
-  [ -z "$matches" ] && continue
 
-  report+="  $f:"$'\n'
-  while IFS= read -r line; do
-    report+="    $line"$'\n'
-  done <<< "$matches"
-done < <(
-  git diff --cached --name-only -z --diff-filter=ACMR -- \
-    . ':(exclude)scripts/check_pii.sh' ':(exclude).pii-allow'
-)
+  if [ -n "$input" ]; then
+    printf '%s\n' "$input"
+  fi
+  return 0
+}
+
+report=''
+
+if [ "$mode" = staged ]; then
+  # ACMR = Added / Copied / Modified / Renamed; excludes pure deletions.
+  # The script and the allow-list itself are skipped so self-inclusion
+  # of the patterns doesn't trip the check.
+  #
+  # Read names via NUL terminators so paths with spaces/newlines survive.
+  while IFS= read -r -d '' f; do
+    [ -z "$f" ] && continue
+    added=$(git diff --cached -U0 --no-color -- "$f" \
+      | grep -E '^\+[^+]' | sed 's/^+//' || true)
+    [ -z "$added" ] && continue
+
+    matches=$(printf '%s\n' "$added" | grep -E "$alt" || true)
+    matches=$(filter_allowed "$matches")
+    [ -z "$matches" ] && continue
+
+    report+="  $f:"$'\n'
+    while IFS= read -r line; do
+      report+="    $line"$'\n'
+    done <<< "$matches"
+  done < <(
+    git diff --cached --name-only -z --diff-filter=ACMR -- \
+      . ':(exclude)scripts/check_pii.sh' ':(exclude).pii-allow'
+  )
+else
+  if ! git rev-parse --verify --quiet "${tree_ref}^{tree}" >/dev/null; then
+    echo "error: not a valid tree-ish: $tree_ref" >&2
+    exit 2
+  fi
+
+  set +e
+  matches=$(git grep -I -n -E "$alt" "$tree_ref" -- \
+    . ':(exclude)scripts/check_pii.sh' ':(exclude).pii-allow' 2>&1)
+  status=$?
+  set -e
+  if [ "$status" -eq 1 ]; then
+    matches=''
+  elif [ "$status" -ne 0 ]; then
+    echo "error: git grep failed while scanning tree $tree_ref:" >&2
+    printf '%s\n' "$matches" >&2
+    exit 2
+  fi
+
+  matches=$(filter_allowed "$matches")
+  if [ -n "$matches" ]; then
+    report+="  $tree_ref:"$'\n'
+    while IFS= read -r line; do
+      report+="    $line"$'\n'
+    done <<< "$matches"
+  fi
+fi
 
 if [ -z "$report" ]; then
   exit 0
 fi
 
 {
-  echo "error: staged diff contains potential PII or secrets:"
+  if [ "$mode" = staged ]; then
+    echo "error: staged diff contains potential PII or secrets:"
+  else
+    echo "error: tree $tree_ref contains potential PII or secrets:"
+  fi
   printf '%s' "$report"
-  echo "  If these are false positives, add a regex to .pii-allow and re-stage."
+  if [ "$mode" = staged ]; then
+    echo "  If these are false positives, add a regex to .pii-allow and re-stage."
+  else
+    echo "  If these are false positives, add a regex to .pii-allow and re-run."
+  fi
 } >&2
 exit 1
