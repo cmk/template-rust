@@ -73,15 +73,26 @@ files_for_layer() {
 }
 
 strip_rust_comments_from_line() {
-    local rest="$1" output="" line_prefix block_prefix line_pos block_pos
+    local rest="$1" output="" line_prefix block_prefix close_prefix line_pos block_pos close_pos
 
     while [[ -n "$rest" ]]; do
-        if (( in_block_comment )); then
-            if [[ "$rest" == *"*/"* ]]; then
-                rest="${rest#*\*/}"
-                in_block_comment=0
-            else
+        if (( block_comment_depth > 0 )); then
+            block_prefix="${rest%%/\**}"
+            close_prefix="${rest%%\*/*}"
+            block_pos=-1
+            close_pos=-1
+            [[ "$block_prefix" != "$rest" ]] && block_pos=${#block_prefix}
+            [[ "$close_prefix" != "$rest" ]] && close_pos=${#close_prefix}
+
+            if (( block_pos == -1 && close_pos == -1 )); then
                 break
+            fi
+            if (( block_pos != -1 && (close_pos == -1 || block_pos < close_pos) )); then
+                rest="${rest#*/\*}"
+                block_comment_depth=$((block_comment_depth + 1))
+            else
+                rest="${rest#*\*/}"
+                block_comment_depth=$((block_comment_depth - 1))
             fi
             continue
         fi
@@ -104,12 +115,7 @@ strip_rust_comments_from_line() {
 
         output+="$block_prefix"
         rest="${rest#*/\*}"
-        if [[ "$rest" == *"*/"* ]]; then
-            rest="${rest#*\*/}"
-        else
-            in_block_comment=1
-            break
-        fi
+        block_comment_depth=1
     done
 
     stripped_line="$output"
@@ -118,7 +124,7 @@ strip_rust_comments_from_line() {
 emit_import_hits() {
     local file="$1"
     local root_re="$2"
-    local line code_line stripped_line line_num=0 start_line=0 collecting=0 block="" in_block_comment=0
+    local line code_line stripped_line line_num=0 start_line=0 collecting=0 block="" block_comment_depth=0
     local use_re="^[[:space:]]*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?use[[:space:]]+(${root_re})::"
     local grouped_re="use[[:space:]]+(${root_re})::\\{"
 

@@ -37,6 +37,7 @@ class CheckLayersTests(unittest.TestCase):
                         "    /* this block comment spans lines",
                         "       and this semicolon; is not the group terminator",
                         "    */",
+                        "    /* outer /* nested; */ still outer; */",
                         "    helper::{self, value},",
                         "    test,",
                         "};",
