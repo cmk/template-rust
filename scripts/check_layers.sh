@@ -72,16 +72,59 @@ files_for_layer() {
     [[ -d "${root}/${layer}" ]] && find "${root}/${layer}" -type f -name '*.rs' -print
 }
 
+strip_rust_comments_from_line() {
+    local rest="$1" output="" line_prefix block_prefix line_pos block_pos
+
+    while [[ -n "$rest" ]]; do
+        if (( in_block_comment )); then
+            if [[ "$rest" == *"*/"* ]]; then
+                rest="${rest#*\*/}"
+                in_block_comment=0
+            else
+                break
+            fi
+            continue
+        fi
+
+        line_prefix="${rest%%//*}"
+        block_prefix="${rest%%/\**}"
+        line_pos=-1
+        block_pos=-1
+        [[ "$line_prefix" != "$rest" ]] && line_pos=${#line_prefix}
+        [[ "$block_prefix" != "$rest" ]] && block_pos=${#block_prefix}
+
+        if (( line_pos == -1 && block_pos == -1 )); then
+            output+="$rest"
+            break
+        fi
+        if (( line_pos != -1 && (block_pos == -1 || line_pos < block_pos) )); then
+            output+="$line_prefix"
+            break
+        fi
+
+        output+="$block_prefix"
+        rest="${rest#*/\*}"
+        if [[ "$rest" == *"*/"* ]]; then
+            rest="${rest#*\*/}"
+        else
+            in_block_comment=1
+            break
+        fi
+    done
+
+    printf '%s' "$output"
+}
+
 emit_import_hits() {
     local file="$1"
     local root_re="$2"
-    local line code_line line_num=0 start_line=0 collecting=0 block=""
+    local line code_line line_num=0 start_line=0 collecting=0 block="" in_block_comment=0
     local use_re="^[[:space:]]*(pub([[:space:]]*\\([^)]*\\))?[[:space:]]+)?use[[:space:]]+(${root_re})::"
     local grouped_re="use[[:space:]]+(${root_re})::\\{"
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         ((line_num += 1))
-        code_line="${line%%//*}"
+        code_line="$(strip_rust_comments_from_line "$line")"
         if (( collecting )); then
             block+=" $code_line"
             if [[ "$code_line" == *";"* ]]; then

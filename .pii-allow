@@ -9,6 +9,3 @@
 # /Users/runner/ as a canonical CI home path):
 #
 #   /Users/runner/
-
-# Test fixture for scripts/check_pii.sh --tree.
-/Users/alice/project
