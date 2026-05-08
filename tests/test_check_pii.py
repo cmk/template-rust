@@ -199,8 +199,10 @@ class CheckPiiTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("leak_one.txt", result.stderr)
-            self.assertIn("leak_two.txt", result.stderr)
+            expected_one = f"    HEAD:leak_one.txt:1:path={home_path}/one"
+            expected_two = f"    HEAD:leak_two.txt:1:path={home_path}/two"
+            self.assertIn(expected_one, result.stderr)
+            self.assertIn(expected_two, result.stderr)
             self.assertEqual(log.read_text(encoding="utf-8").count("\n"), 1)
 
 
