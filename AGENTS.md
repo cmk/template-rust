@@ -209,6 +209,14 @@ walk past because "I didn't write that."
   name the cleanup specifically enough that the next plan branch
   can pick it up.
 
+**Review labels are not discounts.** Treat review comments labeled
+"optional", "nit", "follow-up", "future", suppressed, or
+low-confidence with the same seriousness as any other comment. If the
+comment is local, correct, and small enough to fit the sprint, fix it
+now. Defer only when it is large, complex, outside the sprint boundary,
+or incorrect; record that reason in the plan's `## Review` section or
+the PR reply.
+
 **What does NOT need surfacing.** Drift CI already catches: `cargo
 fmt --check`, `cargo clippy --all-targets -- -D warnings`,
 `gitleaks`, `scripts/check_pii.sh`. The gate is the safety net for
@@ -323,7 +331,9 @@ The commit-time chain is blocking:
 2. `scripts/check_pii.sh` — grep the staged diff for absolute
    user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
    private-key headers, and common API-token shapes. Fail fast on
-   any match. Allow-list exceptions go in `.pii-allow`.
+   any match. `scripts/check_pii.sh --tree <ref>` scans a committed
+   tree when checking history or CI state. Allow-list exceptions go
+   in `.pii-allow`.
 3. `scripts/check_layers.sh` — enforce the module partial orders.
 
 The push-time chain is also blocking:
@@ -413,10 +423,11 @@ repo-specific `/pr-review` command. Codex and shell users use
 origin/main` with the repo conventions and calibration examples. Both
 paths examine `git diff origin/main...HEAD` and the commit log, then
 append findings as a `## Local review (YYYY-MM-DD)` section below the
-summary. The local-review command aborts if the review file or its
-`## Summary` section is missing — step 7 is a prerequisite. Claude
-Code's built-in `/review [PR]` may be useful after a PR exists, but it
-is not the canonical pre-push FSM transition.
+summary and commit that review artifact. The local-review command
+aborts if the review file or its `## Summary` section is missing —
+step 7 is a prerequisite. Claude Code's built-in `/review [PR]` may be
+useful after a PR exists, but it is not the canonical pre-push FSM
+transition.
 
 If another issue or PR is opened between running step 7 and opening
 this branch's PR, the predicted number can drift — re-run
@@ -440,6 +451,11 @@ idempotent — it records `<!-- gh-id: NNNNN -->` markers for each appended
 item and skips any id already present, so running it repeatedly only
 appends new comments. The result is one file per PR containing the full
 local + GitHub review history in order.
+
+Apply the [Be a Good Gardener](#be-a-good-gardener) rule when triaging
+all review material. "Optional", "follow-up", suppressed, and
+low-confidence comments are still real review input; fix the small
+correct ones now, and explicitly explain any deferral or push-back.
 
 Once the findings are addressed as **uncommitted edits in the working
 tree**, run `/pr-reply <N>`. The command does the whole round
@@ -502,6 +518,9 @@ unambiguous and the change is local (one file, under ~20 lines, no
 API removal, no cross-module reasoning). Anything involving judgment
 is classified as **needs you** and surfaced in the round report with
 `path:line` — those threads stay open on GitHub for you to resolve.
+The [Be a Good Gardener](#be-a-good-gardener) rule still applies:
+"optional", "follow-up", suppressed, and low-confidence labels do not
+demote a correct local fix.
 
 The command never **merges**. The merge is the user's safety gate:
 each PR is reviewed manually before `gh pr merge` /

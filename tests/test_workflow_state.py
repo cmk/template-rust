@@ -7,7 +7,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -72,19 +71,67 @@ class WorkflowStateTests(unittest.TestCase):
             git(repo, "commit", "-m", "feat: branch work")
             git(repo, "push", "-u", "origin", branch)
 
-            with mock.patch.dict(
-                os.environ,
-                {
-                    "WORKFLOW_REVIEW_FILE": "doc/reviews/review-99999.md",
-                    "WORKFLOW_STATE_ALLOW_REVIEW_PATH_FALLBACK": "1",
-                },
-            ):
-                fields = run_state(repo, script, bin_dir)
+            fields = run_state(repo, script, bin_dir)
             self.assertEqual(fields["state"], "pushed")
             self.assertEqual(fields["origin_branch_ahead"], "0")
             self.assertEqual(fields["origin_branch_behind"], "0")
             self.assertEqual(fields["review_file"], "unknown")
             self.assertEqual(fields["local_review"], "unknown")
+
+    def test_branch_review_file_infers_plan_and_local_review_states(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            remote = root / "origin.git"
+            repo = root / "repo"
+
+            subprocess.run(["git", "init", "--bare", remote], check=True, capture_output=True)
+            repo.mkdir()
+            git(repo, "init", "--initial-branch=main")
+            git(repo, "config", "user.name", "Workflow Test")
+            git(repo, "config", "user.email", "workflow@example.invalid")
+
+            scripts = repo / "scripts"
+            bin_dir = root / "bin"
+            scripts.mkdir(parents=True)
+            bin_dir.mkdir()
+            gh = bin_dir / "gh"
+            gh.write_text(f"#!{sys.executable}\nimport sys\nsys.exit(1)\n", encoding="utf-8")
+            gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
+            script = scripts / "workflow_state.sh"
+            script.write_text(WORKFLOW_STATE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+            script.chmod(script.stat().st_mode | stat.S_IXUSR)
+            (repo / "README.md").write_text("seed\n", encoding="utf-8")
+
+            git(repo, "add", ".")
+            git(repo, "commit", "-m", "initial")
+            git(repo, "remote", "add", "origin", str(remote))
+            git(repo, "push", "-u", "origin", "main")
+
+            git(repo, "switch", "-c", "review-doc")
+            review_file = repo / "doc" / "reviews" / "review-00042.md"
+            review_file.parent.mkdir(parents=True)
+            review_file.write_text(
+                "# PR #42 - Test\n\n## Summary\n\nBody.\n",
+                encoding="utf-8",
+            )
+            git(repo, "add", "doc/reviews/review-00042.md")
+            git(repo, "commit", "-m", "doc: Finalize plan and PR description")
+
+            fields = run_state(repo, script, bin_dir)
+            self.assertEqual(fields["state"], "plan_finalized")
+            self.assertEqual(fields["review_file"], "doc/reviews/review-00042.md")
+            self.assertEqual(fields["review_summary"], "present")
+            self.assertEqual(fields["local_review"], "missing")
+
+            with review_file.open("a", encoding="utf-8") as f:
+                f.write("\n## Local review (2026-05-07)\n\nNo findings.\n")
+            git(repo, "add", "doc/reviews/review-00042.md")
+            git(repo, "commit", "-m", "doc: Append local review")
+
+            fields = run_state(repo, script, bin_dir)
+            self.assertEqual(fields["state"], "local_reviewed")
+            self.assertEqual(fields["review_file"], "doc/reviews/review-00042.md")
+            self.assertEqual(fields["local_review"], "present")
 
 
 if __name__ == "__main__":

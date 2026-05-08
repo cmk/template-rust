@@ -83,7 +83,7 @@ emit_import_hits() {
         ((line_num += 1))
         if (( collecting )); then
             block+=" $line"
-            if [[ "$line" =~ \} ]]; then
+            if [[ "$line" == *";"* ]]; then
                 printf '%s:%s\n' "$start_line" "$block"
                 collecting=0
                 block=""
@@ -93,7 +93,7 @@ emit_import_hits() {
 
         if [[ "$line" =~ $use_re ]]; then
             if [[ "$line" =~ $grouped_re ]] &&
-                [[ ! "$line" =~ \} ]]; then
+                [[ "$line" != *";"* ]]; then
                 collecting=1
                 start_line="$line_num"
                 block="$line"

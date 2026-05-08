@@ -28,6 +28,24 @@ elif [ -n "${WORKFLOW_REVIEW_FILE:-}" ]; then
   review_file="$WORKFLOW_REVIEW_FILE"
 fi
 
+if [ -z "$review_file" ]; then
+  # Local branch truth: once TDD step 7 has committed the PR description,
+  # the review doc is visible in the branch diff even before a PR exists.
+  # Use this only when exactly one real review file changed on the branch.
+  branch_review_files=()
+  while IFS= read -r path; do
+    case "$path" in
+      doc/reviews/review-00000.md) ;;
+      doc/reviews/review-[0-9][0-9][0-9][0-9][0-9].md)
+        branch_review_files+=("$path")
+        ;;
+    esac
+  done < <(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- 'doc/reviews/review-*.md' 2>/dev/null || true)
+  if [ "${#branch_review_files[@]}" -eq 1 ]; then
+    review_file="${branch_review_files[0]}"
+  fi
+fi
+
 if [ -z "$review_file" ] && [ "${WORKFLOW_STATE_ALLOW_REVIEW_PATH_FALLBACK:-0}" = '1' ]; then
   # Opt-in only: the no-arg fallback may consult GitHub to predict the
   # next PR number, which is too expensive for the default quick probe.

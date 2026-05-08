@@ -12,6 +12,12 @@ Read first:
 - scripts/check_pii.sh.
 - .pii-allow, if present.
 
+Start with the mechanical tree scan:
+
+```
+scripts/check_pii.sh --tree HEAD
+```
+
 Mechanical pass:
 
 1. Absolute home-directory paths.

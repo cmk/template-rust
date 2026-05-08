@@ -44,6 +44,11 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ -n "$(git status --porcelain)" ]; then
+  echo "git_merge.sh: working tree is dirty; commit or stash before merging." >&2
+  exit 1
+fi
+
 # Resolve the PR's head ref. `gh pr view` accepts the same first-arg
 # shapes as `gh pr merge` — number, URL, branch name, or no arg
 # (defaulting to the current branch's open PR). To keep the guard and

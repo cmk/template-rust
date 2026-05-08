@@ -1,5 +1,5 @@
 ---
-description: Tier-1 local pre-push code review. Invokes scripts/pr_review.sh, which runs codex review against origin/main and appends findings to doc/reviews/review-NNNNN.md. The agent does not author the reviewer prompt.
+description: Tier-1 local pre-push code review. Invokes scripts/pr_review.sh, which runs codex review against origin/main, appends findings to doc/reviews/review-NNNNN.md, and commits the review artifact. The agent does not author the reviewer prompt.
 argument-hint: (no args)
 ---
 
@@ -12,7 +12,7 @@ code review. This is Tier 1 of a two-tier system:
 - **Tier 1 (this command):** `scripts/pr_review.sh` runs `codex review
   --base origin/main` against the branch. Codex auto-loads `AGENTS.md`
   + `doc/reviews/calibration.md` from disk as its system prompt.
-  Output is appended to `doc/reviews/review-NNNNN.md`.
+  Output is appended to `doc/reviews/review-NNNNN.md` and committed.
 - **Tier 2 (GitHub):** After push, CI runs `cargo test --workspace`
   and `cargo clippy --all-targets -- -D warnings` (see
   `.github/workflows/ci.yml`). Claude Code Action and/or Copilot
@@ -84,8 +84,8 @@ Invoke `scripts/pr_review.sh`. It runs `codex review --base
 origin/main`, reads `AGENTS.md` automatically as the reviewer system
 prompt (that's the contract — the reviewer's instructions live in
 `AGENTS.md` and `doc/reviews/calibration.md` on disk, not in this
-file), and appends a `## Local review (YYYY-MM-DD)` section to the
-review file.
+file), appends a `## Local review (YYYY-MM-DD)` section to the review
+file, and commits that review artifact.
 
 **Do not author a prompt. Do not pass context to a subagent. Do not
 launch an agent yourself.** The orchestrator (you) has zero authoring
@@ -110,7 +110,8 @@ onward.)
 
 For each item in the codex review's **Must fix before push** and
 **Follow-up (future work)** sections, classify into exactly one
-bucket — same heuristic as `/pr-watch`:
+bucket — same heuristic as `/pr-watch` and the
+[Be a Good Gardener](../../AGENTS.md#be-a-good-gardener) rule:
 
 - **auto** — change is local (one file, under ~20 lines),
   non-destructive (no API removal, no file deletion), and does not
@@ -118,12 +119,18 @@ bucket — same heuristic as `/pr-watch`:
   arms, off-by-one in comments, narrow logic fixes, small test
   additions. Apply now.
 - **needs-user** — larger scope, judgment calls, design decisions,
-  cross-module refactors, or anything where you'd hesitate.
+  cross-module refactors, incorrect findings, or anything where you'd
+  hesitate.
   **Do not apply.** Surface in the report.
 
 When in doubt, classify as **needs-user** (a miscategorized auto-fix
 ships wrong code; a miscategorized needs-user only delays one
 iteration until the user resolves it).
+
+Treat "optional", "nit", "follow-up", suppressed, and low-confidence
+comments as normal comments during this classification. If they are
+local, correct, and small, they are **auto**; defer only with an
+explicit reason.
 
 ### Apply the auto bucket
 
@@ -142,7 +149,9 @@ git commit -m "<prefix>: Address pr-review feedback"
 Use the prefix that matches the nature of the fixes:
 `fix:` (bug), `debt:` (mechanical cleanup), `test:` (test additions),
 `doc:` (doc nits). Mix-and-match isn't possible in one commit — if
-the auto items split across categories, pick the predominant one.
+the auto items split across categories, pick the predominant one. If
+there are no auto-fixes, do not make another commit; `pr_review.sh`
+already committed the local-review artifact.
 
 The pre-commit hook runs `cargo fmt --check`, `scripts/check_pii.sh`,
 and `scripts/check_layers.sh`. The pre-push hook runs

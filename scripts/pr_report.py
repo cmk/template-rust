@@ -119,15 +119,16 @@ def extract_body(path: pathlib.Path) -> str:
     return body
 
 
-def gh_api(path: str) -> list | dict:
+def gh_api(path: str) -> list:
     """Fetch a list endpoint, iterating pages explicitly.
 
     We don't use `gh api --paginate --slurp` because `--slurp` needs gh
     >= 2.47. Explicit `?page=N&per_page=100` iteration works on every
     version and is trivially inspectable.
 
-    If the endpoint returns a dict (non-list), we return it as-is from
-    page 1 without continuing to page.
+    The review/comment endpoints are list endpoints. A non-list response
+    usually means an auth, URL, or GitHub error payload reached us as JSON;
+    fail loudly instead of iterating the wrong shape.
     """
     all_items: list = []
     page = 1
@@ -154,7 +155,12 @@ def gh_api(path: str) -> list | dict:
             )
             raise SystemExit(1)
         if not isinstance(raw, list):
-            return raw
+            print(
+                f"error: expected list JSON from `gh api` endpoint `{paged}`, "
+                f"got {type(raw).__name__}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
         if not raw:
             break
         all_items.extend(raw)

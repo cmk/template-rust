@@ -130,6 +130,11 @@ Rules:
 - Don't post a reply that just says "done" — name what was done.
 - One reply per thread, not per comment. If a thread already has a
   human-authored reply buried, don't post another.
+- Apply AGENTS.md's
+  [Be a Good Gardener](../../AGENTS.md#be-a-good-gardener) rule:
+  "optional", "follow-up", suppressed, and low-confidence comments are
+  real review input. Fix small correct items now; defer only when they
+  are large, complex, outside scope, or incorrect, and say why.
 
 ## Step 4: Post the replies
 

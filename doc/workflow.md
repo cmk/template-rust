@@ -58,6 +58,11 @@ stateDiagram-v2
   notes, then re-run the local review transition (`/pr-review` for
   Claude Code, `scripts/pr_review.sh` for Codex/shell) against the
   new tip.
+- Review triage follows AGENTS.md's
+  [Be a Good Gardener](../AGENTS.md#be-a-good-gardener) rule:
+  "optional", "follow-up", suppressed, and low-confidence comments are
+  treated seriously unless they are large, complex, out of scope, or
+  incorrect.
 - `plan_finalized` sits deliberately *before* `local_reviewed`: the
   reviewer reads the plan as context and should see its final form,
   including what was intentionally cut and why. It's also when
@@ -138,9 +143,10 @@ stateDiagram-v2
 **Legend:**
 - `push_failed` is the recovery state when a previous tick's
   `git push` errored (network, non-fast-forward). The next tick
-  surfaces the unpushed commit to the user without polling further.
-  It counts as a quiet tick — successive failures still trigger
-  backoff and quit.
+  retries only if `.pr-watch/pr-<N>.push-failed-head` matches the
+  current `HEAD`; otherwise it surfaces the unpushed commit to the user
+  without polling further. It counts as a quiet tick — successive
+  failures still trigger backoff and quit.
 - `reschedule_quiet` reads the backoff table: count 1→5m, 2→5m, 3→5m,
   4→10m, 5→10m, >5 → quit (total silence budget ≈ 35 minutes).
 - Any `reschedule_active` edge resets the counter to 0, so a burst of

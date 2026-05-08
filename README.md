@@ -13,30 +13,30 @@ is the human-facing tour.
 - **Pinned toolchain** via `rust-toolchain.toml` (Rust 1.85 + clippy +
   rustfmt). CI installs the same channel via
   `dtolnay/rust-toolchain@1.85.0`.
-- **Two-layer pre-commit hook**: a Claude Code `PreToolUse` hook
+- **Two-layer local hook chain**: a Claude Code `PreToolUse` hook
   (`.claude/settings.json`) gates agent-invoked `git commit*` Bash
-  calls, plus a git-side `pre-commit` script (`.githooks/pre-commit`)
-  that catches commits from any path (chained Bash, terminal, IDE).
-  Both run `cargo fmt --check`, a PII scan, `cargo test`, and
-  `cargo clippy` — every step blocking. Activate the git-side layer
-  on a fresh clone: `git config core.hooksPath .githooks`.
+  calls, plus git-side `pre-commit` and `pre-push` hooks. Commit-time
+  checks run `cargo fmt --check`, the PII scan, and the layer check;
+  push-time checks run `cargo test --workspace` and clippy. Activate
+  the git-side layer on a fresh clone:
+  `git config core.hooksPath .githooks`.
 - **CI jobs**: `test` (test + clippy + fmt warn), `deny` (cargo-deny
   licenses/advisories/sources), `secrets` (gitleaks on full history).
-- **Two-tier review**: `/sprint-review` for Claude Code or
-  `scripts/local_review.sh` for Codex runs an independent local review
+- **Two-tier review**: `/pr-review` for Claude Code or
+  `scripts/pr_review.sh` for Codex runs an independent local review
   before push; Claude Code Action and/or Copilot pick it up on the PR
   after push. Findings from both rounds land in one
   `doc/reviews/review-NNNNN.md` file per PR.
-- **Finalize-a-round slash command**: `/reply-reviews` posts replies,
+- **Finalize-a-round slash command**: `/pr-reply` posts replies,
   mirrors them into the review doc, and folds the doc into the
   unpushed fix commit — one push delivers code + replies + audit
   trail. Refuses to run if the fix commit is already pushed.
-- **Automated poll loop**: `/loop /watch-pr <N>` watches a PR for
+- **Automated poll loop**: `/loop /pr-watch <N>` watches a PR for
   new reviewer activity, auto-fixes items whose intent is
   unambiguous (one file, <20 lines, no API removal), runs the
-  `/reply-reviews` flow, and pushes the round commit. Dynamic-mode
+  `/pr-reply` flow, and pushes the round commit. Dynamic-mode
   backoff: 5/5/5/10/10 min, auto-quit on the 6th quiet tick.
-- **PR-number prediction** (`scripts/next_pr_number.sh`): review
+- **PR-number prediction** (`scripts/pr_request.sh`): review
   files are named `review-NNNNN.md` from the start, before the PR is
   opened.
 
@@ -49,12 +49,12 @@ stateDiagram-v2
     on_branch --> plan_committed: write plan + `plan:` commit
     plan_committed --> impl_green: TDD loop (tests + feat/fix commits)
     impl_green --> plan_finalized: append Deferred + Review, draft PR body
-    plan_finalized --> local_reviewed: /sprint-review or scripts/local_review.sh
+    plan_finalized --> local_reviewed: /pr-review or scripts/pr_review.sh
     local_reviewed --> impl_green: must-fix items surfaced
     local_reviewed --> pushed: clean, git push
     pushed --> gh_review: CI runs + reviewers post
-    gh_review --> items_pulled: /pull-reviews
-    items_pulled --> round_unpushed: edit working tree + /reply-reviews
+    gh_review --> items_pulled: /pr-report
+    items_pulled --> round_unpushed: edit working tree + /pr-reply
     round_unpushed --> gh_review: git push (code + replies + doc in one trip)
     gh_review --> merged: no more items, rebase + ff to main
     merged --> [*]
@@ -74,7 +74,7 @@ Two reasons for this ordering:
    in one commit. That keeps the GitHub thread and branch history from
    drifting apart.
 
-The `/watch-pr` loop has its own state diagram; both live in
+The `/pr-watch` loop has its own state diagram; both live in
 [doc/workflow.md](doc/workflow.md).
 
 ## Layout
@@ -95,15 +95,16 @@ doc/
   reviews/              — one file per PR, local + GitHub rounds combined
   workflow.md           — state diagrams
 scripts/
-  check-pii.sh          — grep staged diff for /Users/, /home/, keys, tokens
-  next_pr_number.sh     — predicts the next PR number via gh api
-  pull_reviews.py       — fetches PR comments into review-NNNNN.md
-  reply_review.py       — posts a reply to a review thread
+  check_pii.sh          — grep staged diff or --tree ref for PII/secrets
+  pr_request.sh         — predicts the next PR number via gh api
+  pr_report.py          — paths, PR bodies, and GitHub review mirroring
+  pr_reply.py           — posts a reply to a review thread
   workflow_state.sh     — reports the inferred workflow FSM state
-  local_review.sh       — Codex local-review transition
-  autosquash.sh         — collapses --fixup commits before push
+  pr_review.sh          — Codex local-review transition
+  git_squash.sh         — collapses --fixup commits before push
+  git_merge.sh          — guarded gh pr merge wrapper
 .claude/
-  commands/             — Claude Code slash commands (/sprint-review, /watch-pr, …)
+  commands/             — Claude Code slash commands (/pr-review, /pr-watch, ...)
   settings.json         — pre-commit hook
   settings.local.json   — per-user permission allow/deny list
 ```
