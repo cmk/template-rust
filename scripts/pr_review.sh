@@ -69,11 +69,22 @@ trap 'rm -f "$tmp"' EXIT
 # root, so use the supported base-review invocation.
 codex review --base origin/main >"$tmp"
 
+# Record which prompt files codex saw, so a review can be traced back
+# to its prompt version after AGENTS.md or calibration.md drift.
+agents_sha=$(git hash-object AGENTS.md 2>/dev/null || echo missing)
+if [ -f doc/reviews/calibration.md ]; then
+  calib_sha=$(git hash-object doc/reviews/calibration.md)
+else
+  calib_sha=missing
+fi
+
 {
   printf '\n## Local review (%s)\n\n' "$date"
   printf '**Branch:** %s\n' "$branch"
   printf '**Commits:** %s (origin/main..%s)\n' "$commits" "$branch"
-  printf '**Reviewer:** Codex (`codex review --base origin/main`)\n\n'
+  printf '**Reviewer:** Codex (`codex review --base origin/main`)\n'
+  printf '**Prompt fingerprint:** AGENTS.md=%s calibration=%s\n\n' \
+    "$agents_sha" "$calib_sha"
   printf '%s\n\n' '---'
   cat "$tmp"
   printf '\n'
