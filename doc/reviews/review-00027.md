@@ -63,3 +63,23 @@ seeded from it, without manually diffing each path.
 - **`--apply --force`** for dirty downstreams.
 - **Externalized manifest** (e.g. `template_sync.toml`).
 - **Auto-commit / auto-PR**. Out of scope by design — pull model only.
+
+## Local review (2026-05-08)
+
+**Branch:** plan/2026-05-08-03
+**Commits:** 3 (origin/main..plan/2026-05-08-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+**Prompt fingerprint:** AGENTS.md=02d75717d4a011a259975a8871afb571ef13ccc8 calibration=da4563c5de79900526f1af39c38320bea4cee6c5
+
+---
+
+The new --apply path is not portable to the Ubuntu CI environment and will fail when copying drifted files. The manifest also omits the newly added sync artifacts, so downstream repos cannot be fully brought up to date by the tool.
+
+Full review comments:
+
+- [P1] Use a portable mode lookup before install — scripts/template_sync.sh:237-237
+  On Ubuntu/GNU coreutils, including this repo's CI runner, `stat -f` does not take a format argument; it treats `'%Lp'` as a filename and can still print filesystem information for `$src` before the fallback `stat -c` runs. For any `--apply` that copies a drifted file, `install -m "$(...)"` receives a multi-line/non-octal mode and fails, which also breaks the new unittest apply case in CI; the identical expression in the missing-file branch needs the same fix.
+
+- [P2] Add new sync artifacts to the manifest — scripts/template_sync.sh:50-50
+  `--apply` only copies paths listed in `VERBATIM_PATHS`, but this PR adds `scripts/template_sync.sh` and `tests/test_template_sync.py` without listing either one. A downstream updated with the new tool will therefore still be missing the sync tool and its regression test, even though the docs describe the `scripts/` tooling and Python regression suite as canonical downstream-owned files.
+
