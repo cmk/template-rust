@@ -32,6 +32,7 @@ class CheckLayersTests(unittest.TestCase):
                         "//! layer: conn",
                         "//! depends-on:",
                         "use crate::{",
+                        "    // the semicolon in this comment; is not the group terminator",
                         "    helper::{self, value},",
                         "    test,",
                         "};",

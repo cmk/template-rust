@@ -47,7 +47,11 @@ class PrReviewTests(unittest.TestCase):
             bin_dir.mkdir()
             codex = bin_dir / "codex"
             codex.write_text(
-                f"#!{sys.executable}\nprint('No findings.')\n",
+                (
+                    f"#!{sys.executable}\n"
+                    "import pathlib\n"
+                    "print(f'No findings in {pathlib.Path.cwd() / \"scripts\" / \"pr_review.sh\"}.')\n"
+                ),
                 encoding="utf-8",
             )
             codex.chmod(codex.stat().st_mode | stat.S_IXUSR)
@@ -85,8 +89,10 @@ class PrReviewTests(unittest.TestCase):
 
             self.assertEqual(subject, "doc: Append local review")
             self.assertEqual(status, "")
-            self.assertIn("## Local review", review_file.read_text(encoding="utf-8"))
-            self.assertIn("No findings.", review_file.read_text(encoding="utf-8"))
+            review_text = review_file.read_text(encoding="utf-8")
+            self.assertIn("## Local review", review_text)
+            self.assertIn("No findings in scripts/pr_review.sh.", review_text)
+            self.assertNotIn(str(repo), review_text)
 
 
 if __name__ == "__main__":
