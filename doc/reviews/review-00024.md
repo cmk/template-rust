@@ -112,3 +112,22 @@ Review comment:
 - [P2] Support nested block comments while stripping imports — scripts/check_layers.sh:107-108
   When a grouped `use` contains a nested Rust block comment, this clears `in_block_comment` at the inner `*/` even though the outer comment is still open. A semicolon that remains inside the outer comment can then terminate collection before the later imports are parsed, so a valid import like `/* outer /* inner; */ still outer; */ test,` lets `conn` import the higher `test` layer without `scripts/check_layers.sh` failing.
 
+
+## Local review (2026-05-07)
+
+**Branch:** plan/2026-05-07-03
+**Commits:** 13 (origin/main..plan/2026-05-07-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+
+---
+
+The new workflow hardening adds useful coverage, but it leaves false negatives in two guard scripts: layer checks can be bypassed by valid string literals and tree PII scans can be masked by an unrelated working-tree allow-list.
+
+Full review comments:
+
+- [P2] Avoid carrying comment state from string literals — scripts/check_layers.sh:133-134
+  Because every line is stripped before checking whether it is a `use`, a valid Rust string earlier in the file such as `const S: &str = "/*";` sets `block_comment_depth` and causes subsequent real imports to be ignored until a `*/` appears. In that scenario `conn.rs` can still contain `use crate::test;` while `scripts/check_layers.sh` reports OK, bypassing the layer gate.
+
+- [P2] Use the scanned tree's PII allow-list — scripts/check_pii.sh:136-136
+  When `--tree` is used from a dirty or future checkout, this filters committed matches through `.pii-allow` loaded from the working tree. An uncommitted allow-list entry can make `scripts/check_pii.sh --tree HEAD` return success for a leak that is committed in `HEAD`, so the new history/CI audit mode is not checking the tree it was asked to scan.
+
