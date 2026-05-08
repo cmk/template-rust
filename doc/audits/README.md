@@ -125,3 +125,10 @@ scripts/audit_run.py run <name> --force --dry-run
 
 102 calendar fires/year, with far fewer Codex invocations because the
 early-exit gate skips no-change weeks.
+
+## See also
+
+`scripts/template_sync.sh` covers the orthogonal *cross-repo* drift
+between this template and downstream forks (workflow scripts, git
+hooks, Claude command playbooks, audit prose). See "Syncing
+downstream forks" in `AGENTS.md`.
