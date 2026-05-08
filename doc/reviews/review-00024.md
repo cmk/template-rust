@@ -81,3 +81,19 @@ Review comment:
 - [P2] Filter tree-scan allow-lists against line content — scripts/check_pii.sh:116-117
   When `--tree` is used with an anchored `.pii-allow` entry, e.g. `^path=<home>/project$`, this `git grep -n` output is passed through with the `HEAD:file:line:` prefix still attached, so `filter_allowed` no longer matches the documented offending line content. This makes the new tree scan keep failing after users add the suggested exact-line allow-list, and can also let allow-list patterns match file paths rather than the leaked text.
 
+
+## Local review (2026-05-07)
+
+**Branch:** plan/2026-05-07-03
+**Commits:** 8 (origin/main..plan/2026-05-07-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+
+---
+
+The layer-check hardening still has a bypass for multi-line block comments because comment state is not preserved across lines. That can let forbidden imports evade the CI layer gate.
+
+Review comment:
+
+- [P2] Preserve block-comment state across import lines — scripts/check_layers.sh:127-127
+  Because `strip_rust_comments_from_line` is invoked through command substitution here, its updates to `in_block_comment` happen in a subshell and are lost before the next input line. When a grouped `use` contains a multi-line block comment with a semicolon before a forbidden layer import, collection stops on the commented semicolon and the later import is never inspected, so `scripts/check_layers.sh` can report OK for a valid Rust import that violates the layer order.
+
