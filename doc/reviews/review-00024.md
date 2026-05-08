@@ -47,3 +47,21 @@ Full review comments:
 
 - [P3] Create the pr-watch directory before marker writes — .claude/commands/pr-watch.md:235-236
   On the first productive `/pr-watch` tick, `.pr-watch/` may not exist yet, but this new push-failure recovery path requires writing `.pr-watch/pr-<N>.push-failed-head`. If that marker is not created after a failed push, the next tick hits Step 0d's marker requirement and refuses to retry a commit that was actually produced by `/pr-watch`; add the directory creation to this failure path before writing the marker.
+
+## Local review (2026-05-07)
+
+**Branch:** plan/2026-05-07-03
+**Commits:** 4 (origin/main..plan/2026-05-07-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+
+---
+
+The patch leaves two workflow gates with bypasses: layer checking can still miss forbidden imports in valid Rust syntax, and the PII allow-list now suppresses a broad home-path pattern globally. These should be tightened before merging.
+
+Full review comments:
+
+- [P2] Keep block-comment semicolons from ending use groups — scripts/check_layers.sh:87-87
+  When a multiline grouped `use` contains a block comment with a semicolon before a higher-layer import, this condition terminates collection before the rest of the group is inspected. For example, `use crate::{ /* ; */ test, };` in `conn.rs` is valid Rust but the layer gate reports OK, so forbidden imports can still bypass CI.
+
+- [P2] Narrow the PII fixture allow-list — .pii-allow:14-14
+  Because `.pii-allow` regexes are applied to every offending line, this unanchored entry suppresses any staged or tree hit containing `<home>/project`, including suffixes like `<home>/project/private`, not just the test fixture. That creates a blind spot in the home-path gate; split the fixture string in tests or make the exception specific enough that real matching paths still fail.
