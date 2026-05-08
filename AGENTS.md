@@ -213,10 +213,6 @@ appear in any first-party Cargo.toml. The policy has three tiers:
      wanting anyhow add themselves to the wrapper list via PR here.
    - `clap` — `bpaf` won. Currently no first-party clap usage; this
      rule is preventive.
-   - `dasp-sample` — direct dep banned. cpal pulls it transitively
-     and that's fine; first-party Cargo.toml entries surfacing
-     `Sample`/`ToSample`/`FromSample` are not. The future shared
-     audio crate hand-rolls its sample/frame types.
    - `async-trait` — workspace MSRV is Rust 1.88, which has native
      `async fn in trait`. Use `-> impl Future<Output = ...> + Send`
      where Send bounds are required.

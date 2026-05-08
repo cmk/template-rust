@@ -125,6 +125,9 @@ table).
 | `rig-core` | `0.35` | `features = ["rmcp"]` | LLM/agent |
 | `criterion` (dev) | `0.5` | `features = ["html_reports"]` | benchmarks |
 | `proptest-state-machine` (dev) | `0.3` | — | proptest extension |
+| `dasp-sample` | `0.11` | — | sample / I24-U24 newtypes / EQUILIBRIUM constants from the dasp ecosystem |
+| `dasp-frame` | `0.11` | — | multi-channel frame trait |
+| `wmidi` | `4` | — | typed MIDI message values (companion to `midir` for I/O) |
 
 ---
 
@@ -136,7 +139,6 @@ table).
 |---|---|---|
 | `anyhow` | `wrappers = ["riffgrep"]` | Libraries must use `thiserror`. Binary crates that genuinely need anyhow add themselves to the wrapper list via PR here. |
 | `clap` | none | `bpaf` won. Currently zero first-party clap usage; preventive. |
-| `dasp-sample` | none (transitive via cpal still allowed) | Keeps `Sample`/`ToSample`/`FromSample` out of first-party public APIs. The future shared audio crate hand-rolls its sample/frame types in the connections style (typed quantities, f32-canonical). |
 | `async-trait` | none | Workspace MSRV is Rust 1.88, which has native `async fn in trait`. Use `-> impl Future<Output = ...> + Send` where Send bounds are required. |
 
 The existing `[bans] multiple-versions = "warn"` policy in

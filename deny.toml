@@ -43,10 +43,6 @@ name = "clap"
 reason = "bpaf is the standardized CLI parser. Currently zero first-party clap usage; this rule is preventive."
 
 [[bans.deny]]
-name = "dasp-sample"
-reason = "Direct dep banned to keep ToSample/FromSample out of first-party public APIs. cpal pulls dasp-sample transitively; that's unavoidable and fine. The future shared audio crate hand-rolls its sample/frame types in the connections style (typed quantities, f32-canonical)."
-
-[[bans.deny]]
 name = "async-trait"
 reason = "Rust 1.85 (workspace MSRV) has native async fn in trait. Migrate to that and use `-> impl Future<Output = ...> + Send` where Send bounds are required."
 

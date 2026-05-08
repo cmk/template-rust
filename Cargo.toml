@@ -114,6 +114,15 @@ trybuild         = "1"
 # hound          = "3.5"
 # lofty          = "0.22"
 
+# Sample / frame primitives (dasp ecosystem). Direct use is allowed —
+# the future shared audio crate may re-export I24/U24 newtypes and
+# EQUILIBRIUM constants. cpal pulls dasp-sample transitively too.
+# dasp-sample    = "0.11"
+# dasp-frame     = "0.11"
+
+# MIDI message types (companion to midir, which is I/O)
+# wmidi          = "4"
+
 # Audio sync (FFI)
 # rusty_link     = "=0.4.8"
 
