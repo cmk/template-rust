@@ -131,3 +131,12 @@ Full review comments:
 - [P2] Use the scanned tree's PII allow-list — scripts/check_pii.sh:136-136
   When `--tree` is used from a dirty or future checkout, this filters committed matches through `.pii-allow` loaded from the working tree. An uncommitted allow-list entry can make `scripts/check_pii.sh --tree HEAD` return success for a leak that is committed in `HEAD`, so the new history/CI audit mode is not checking the tree it was asked to scan.
 
+## Local review (2026-05-07)
+
+**Branch:** plan/2026-05-07-03
+**Commits:** 15 (origin/main..plan/2026-05-07-03)
+**Reviewer:** Codex (`codex review --base origin/main`)
+
+---
+
+The changed workflow scripts, validation helpers, docs, and added regression tests appear consistent with the intended behavior. Local Python tests, Rust tests, clippy, shell syntax checks, and the new PII tree scan passed during review.
