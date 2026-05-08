@@ -125,8 +125,6 @@ table).
 | `rig-core` | `0.35` | `features = ["rmcp"]` | LLM/agent |
 | `criterion` (dev) | `0.5` | `features = ["html_reports"]` | benchmarks |
 | `proptest-state-machine` (dev) | `0.3` | — | proptest extension |
-| `dasp-sample` | `0.11` | — | sample / I24-U24 newtypes / EQUILIBRIUM constants from the dasp ecosystem |
-| `dasp-frame` | `0.11` | — | multi-channel frame trait |
 | `wmidi` | `4` | — | typed MIDI message values (companion to `midir` for I/O) |
 
 ---
