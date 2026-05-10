@@ -6,48 +6,54 @@ file. Claude Code-specific commands and settings remain under `.claude/`.
 
 ## What this repo is
 
-<!-- Replace this section with your project description. -->
+A Rust workspace template. Downstream repos (one per workspace) are
+seeded from this template and resync the workflow tooling via
+`scripts/template_sync.sh`.
 
-A Rust workspace with multiple crates.
+## Architecture
 
-## Parallel work
+```
+Cargo.toml              — workspace root
+rust-toolchain.toml     — pinned Rust 1.88 + components
+rustfmt.toml            — formatter config (edition 2024)
+deny.toml               — cargo-deny policy
+crates/
+  project/              — public facade crate; exposes `project::core`
+  core/                 — shared types, test utilities, proptest strategies
+  cli/                  — binary entrypoint; feature-gates optional lib crates
+```
 
-At the start of each conversation, ask the user:
-"Are any other agent instances working in this repo right now?"
+Feature flags on the facade and binary crates control which library
+crates are compiled in:
 
-If yes, a worktree is **mandatory** — see the TDD workflow's Step 1
-for the naming convention (`../<repo>.plan-YYYY-MM-DD-NN` + branch
-`plan/YYYY-MM-DD-NN`).
+```toml
+[features]
+default = ["core"]
+core = ["dep:project-core"]
+```
 
-Never run two agent instances in the same worktree. Cargo takes a
-file lock on `target/` during each build, so concurrent builds stall
-behind each other ("Blocking waiting for file lock"). Separate
-worktrees each get their own `target/` and sidestep the lock —
-**unless** `CARGO_TARGET_DIR` is exported in your shell or
-`~/.cargo/config.toml` sets `[build] target-dir`, either of which
-forces every worktree to share one directory and reintroduces the
-lock. Verify with `cargo metadata --format-version 1 --no-deps | jq -r .target_directory`
-in two worktrees — different paths = safe.
+Bumping MSRV requires updating three places together: `rust-version` in
+`Cargo.toml`, the channel in `rust-toolchain.toml`, and the action ref
+in `.github/workflows/ci.yml`.
+
+`doc/notes/` is gitignored and holds the user's personal notes. Agents
+may read from it for context but must not write to it unless asked.
 
 ## Syncing downstream forks
 
-Downstream repos seeded from this template (one per workspace) drift
-on the workflow tooling that template-rust owns canonically: the
-scripts under `scripts/`, the git hooks, the Claude command playbooks,
-the audit docs, the calibration/workflow prose, and the Python
-regression suite. `scripts/template_sync.sh` is a manifest-driven
-manual sync — pull-mode (the maintainer runs it from this repo
-against one or more downstream paths), opt-in `--apply`. It reports
-match / drift / missing for the verbatim set, and match / differs /
-missing for the surgical set, but never auto-edits surgical paths.
+Downstream repos drift on the workflow tooling that template-rust owns
+canonically: `scripts/`, `.githooks/`, the Claude command playbooks, the
+audit/workflow prose, and the Python regression suite.
+`scripts/template_sync.sh` is a manifest-driven manual sync — pull-mode
+(maintainer runs it from this repo against one or more downstream
+paths), opt-in `--apply`. It reports match / drift / missing for the
+verbatim set, and match / differs / missing for the surgical set, but
+never auto-edits surgical paths.
 
-Surgical paths the maintainer still owes by hand:
-`AGENTS.md`, `Cargo.toml`, `rust-toolchain.toml`, `rustfmt.toml`,
-`deny.toml`, `.github/workflows/ci.yml`. These encode project-specific
-facts — MSRV, crate names, layer rules, dependency policy — and need a
-human merge.
-
-Typical use:
+Surgical paths the maintainer still owes by hand: `AGENTS.md`,
+`Cargo.toml`, `rust-toolchain.toml`, `rustfmt.toml`, `deny.toml`,
+`.github/workflows/ci.yml`. They encode project-specific facts (MSRV,
+crate names, layer rules, dependency policy) and need a human merge.
 
 ```
 # Read-only drift check across one or more downstream repos:
@@ -58,112 +64,14 @@ scripts/template_sync.sh --apply ../downstream-a
 ```
 
 `--apply` refuses a dirty downstream tree so the resulting `git diff`
-is exactly the sync, ready to land via the normal
-`plan/YYYY-MM-DD-NN` branch in the downstream.
+is exactly the sync, ready to land via the normal `plan/YYYY-MM-DD-NN`
+branch in the downstream.
 
-## Workflow Is a State Machine
+## Library conventions
 
-The TDD and review workflow is a finite state machine, not a menu of
-roughly-equivalent steps. Before committing, running local review,
-pushing, replying to review comments, or merging, agents must identify
-the current state and take only the documented transition out of it.
-Use `scripts/workflow_state.sh` as a read-only state check when the
-state is not obvious.
-
-The intended path is:
-
-```
-main_clean
-  -> on_branch
-  -> plan_committed
-  -> impl_green
-  -> plan_finalized
-  -> local_reviewed
-  -> pushed
-  -> gh_review
-  -> items_pulled
-  -> round_unpushed
-  -> gh_review
-  -> merged
-```
-
-Do not skip, reorder, or replace a transition with an ad hoc command
-that merely looks equivalent. Use the repo scripts and commands for
-workflow-sensitive actions:
-
-- Local review: Claude Code uses `/pr-review`; Codex and shell
-  users use `scripts/pr_review.sh`. Claude Code's built-in
-  `/review [PR]` is optional post-push review help, not the canonical
-  pre-push transition.
-- PR body pathing: `scripts/pr_report.py path` and
-  `scripts/pr_report.py body`.
-- GitHub review ingestion: `scripts/pr_report.py reviews`.
-- Review replies: `/pr-reply` or the underlying
-  `scripts/pr_reply.py` + `scripts/pr_report.py reviews` flow.
-- Merge: `scripts/git_merge.sh`, not raw `gh pr merge`.
-
-## Project Architecture
-
-<!-- Replace this section with your architecture overview. -->
-
-### Rust Workspace
-
-```
-Cargo.toml              — workspace root
-rust-toolchain.toml     — pinned Rust version (1.88) + components for local and CI
-rustfmt.toml            — formatter config (edition 2024)
-deny.toml               — cargo-deny license/advisory/source policy
-crates/
-  project/              — public facade crate; exposes `project::core`
-  core/                 — shared types, test utilities, proptest strategies
-  cli/                  — binary entrypoint; feature-gates optional lib crates
-```
-
-The active Rust toolchain is pinned via `rust-toolchain.toml`; `rustup`
-reads it automatically when you `cd` into the repo, and CI installs
-the same channel via `dtolnay/rust-toolchain@1.88.0`. Bumping MSRV
-means updating `rust-version` in `Cargo.toml`, the channel in
-`rust-toolchain.toml`, and the action ref in `.github/workflows/ci.yml`
-together.
-
-Feature flags on the facade and binary crates control which library crates
-are compiled in:
-
-```toml
-[features]
-default = ["core"]
-core = ["dep:project-core"]
-```
-
-### Session Notes
-
-`doc/notes/` is gitignored and holds the user's personal notes for the
-project. Agents may read from it for context but must not write to it
-unless explicitly asked.
-
-## Repository Rules
-
-- **Each pushed commit must leave the repo green** (`cargo test --workspace`
-  + `cargo clippy --all-targets -- -D warnings`).
-  Do not commit a library module without the tests that cover it in the
-  same commit. Intra-branch commits can be transiently red between
-  commit and push; the pre-push hook is the gate, and CI verifies the
-  pushed state.
-- **No merge commits.** Always rebase onto main — never `git merge`. The
-  history must be linear.
-- **CI-repair commits must be fixups.** If a commit on this branch broke
-  CI and the follow-up exists only to repair it, commit with
-  `git commit --fixup=<broken-sha>` instead of a standalone `fix:`.
-  Before pushing, run `scripts/git_squash.sh` (a thin wrapper over
-  `GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash origin/main`) so the
-  fixups collapse into their targets. This keeps main's linear history
-  free of commits that temporarily broke the build. Review-round commits
-  (addressing reviewer feedback from an earlier push) remain standalone
-  so the audit trail survives.
-- **No unsafe code**: every crate root must declare `#![forbid(unsafe_code)]`.
-- **Inter-module imports respect the template partial order.**
-
-  `project-core` (`crates/core/src`) starts with a small reusable DAG:
+- **No unsafe code**: every crate root declares `#![forbid(unsafe_code)]`.
+- **Inter-module imports respect a partial order** (pre-commit hook).
+  `project-core` (`crates/core/src`) starts with:
 
       test -> conn
       conn -> (leaf)
@@ -174,464 +82,256 @@ unless explicitly asked.
       parse   -> (leaf)
 
   Each top-level module-root file declares its allowed deps in a
-  sentinel header comment:
+  sentinel header:
 
       //! layer: test
       //! depends-on: conn
 
-  `scripts/check_layers.sh` parses these headers and fails on any
-  production-code layer import through `crate::<top>`, the crate's own
-  extern name (for example `project_core::<top>` or
-  `project_cli::<top>`), or a facade path such as
-  `project::core::<top>` when that path names a module in that crate's
-  layer set but is not listed in the current layer's `depends-on:`
-  sentinel. Adding a new edge requires updating both the sentinel and
-  this rule's prose so the gate and convention stay in sync.
-- **Test fixtures are gitignored**, and a fresh checkout must pass
-  `cargo test --workspace` with zero setup. Tests that depend on a
-  fixture file must use the `fixture_or_skip!` macro from the core
-  crate and `return` cleanly when the fixture is absent — **do not**
-  `#[ignore]` them and do not panic.
+  `scripts/check_layers.sh` parses these and fails on any layer import
+  through `crate::<top>`, the crate's own extern name (e.g.
+  `project_core::<top>`), or a facade path (`project::core::<top>`)
+  not listed in the current layer's `depends-on:`. Adding an edge
+  requires updating both the sentinel and this rule's prose.
+- **Test fixtures are gitignored**; a fresh checkout passes
+  `cargo test --workspace` with zero setup. Fixture-dependent tests
+  use the `fixture_or_skip!` macro and `return` cleanly when absent —
+  **do not** `#[ignore]` them and do not panic.
 - **Property-based testing is mandatory** for any module that parses,
-  encodes, or transforms data. Use `proptest` (workspace dev-dep).
-  - Define strategies as functions returning `impl Strategy`, not
-    `Arbitrary` derive. Use `prop_oneof!` with frequency weights to
-    bias toward boundary values and edge cases.
-  - Strategies shared across crates live in `crates/core/src/arb.rs`.
-    Strategies local to one module stay colocated in that module's
-    `#[cfg(test)]` block.
-  - Properties that must hold for a sprint to ship are defined **in
-    the plan's Verification table** before any code is written.
-  - If a property test blocks progress during implementation, you may
-    `#[ignore]` it temporarily but **you must document it** in the
-    plan's Review section with the reason and a plan to re-enable.
-- **Use Rust's modern module layout.** If you have a specific reason
-  not to, **document it**. The modern layout does not have a `mod.rs`
-  file. The equivalent module sits one level up and is named after
-  the module directory:
-
-  ```
-  src/
-  ├── main.rs
-  ├── network.rs      <-- Defines 'network' module
-  └── network/
-      └── server.rs   <-- Submodule of 'network'
-  ```
+  encodes, or transforms data (`proptest` workspace dev-dep):
+  - Strategies are functions returning `impl Strategy`, not `Arbitrary`
+    derive. Use `prop_oneof!` with frequency weights to bias toward
+    boundary values.
+  - Cross-crate strategies live in `crates/core/src/arb.rs`. Module-local
+    strategies stay in that module's `#[cfg(test)]` block.
+  - Sprint-blocking properties go in the plan's **Verification** table
+    before any code is written. Temporary `#[ignore]` requires a
+    Review-section reason and re-enable plan.
+- **Modern module layout** (no `mod.rs` — sibling file one level up,
+  named after the directory). Document any deviation.
 
 ## Dependency policy
 
 This template is the source of truth for which external crates may
-appear in any first-party Cargo.toml. The policy has three tiers:
+appear in any first-party Cargo.toml. Three tiers:
 
-1. **Required tier.** Listed in this repo's
-   `[workspace.dependencies]` (above the allowed-tier fence). Crates
-   with two or more first-party consumers. Member crates and
-   downstream repos use them via `{ workspace = true }`; never
-   re-state the version number. **One exception:** `connections` is
-   required-tier policy but is not declared in this template's
-   `Cargo.toml` — each downstream repo adds the entry directly,
-   pinning the same git rev. See `doc/CRATES.md` for the rationale.
-2. **Allowed tier.** Listed below the allowed-tier fence in
-   `[workspace.dependencies]` as **commented** entries, and
-   tabulated in `doc/CRATES.md`. Single-consumer crates pinned to
-   the canonical version. To adopt one in a member crate, uncomment
-   its line here and add `{ workspace = true }` in the member's
-   Cargo.toml — do not invent your own version pin.
-3. **Blacklist.** `[[bans.deny]]` entries in `deny.toml`. Crates that
-   may NOT appear in any first-party Cargo.toml without an explicit
-   per-wrapper exemption. Currently:
-   - `anyhow` — libraries must use `thiserror`. Binary-only
-     exemption via `wrappers = ["riffgrep"]`. New binary crates
-     wanting anyhow add themselves to the wrapper list via PR here.
-   - `clap` — `bpaf` won. Currently no first-party clap usage; this
-     rule is preventive.
-   - `async-trait` — workspace MSRV is Rust 1.88, which has native
-     `async fn in trait`. Use `-> impl Future<Output = ...> + Send`
-     where Send bounds are required.
+1. **Required tier.** Listed in `[workspace.dependencies]` (above the
+   allowed-tier fence). Two or more first-party consumers. Member crates
+   and downstream repos use them via `{ workspace = true }`; never
+   re-state the version. **Exception:** `connections` is required-tier
+   policy but isn't declared in this template's `Cargo.toml` — each
+   downstream pins the same git rev directly. See `doc/CRATES.md`.
+2. **Allowed tier.** Listed below the fence as **commented** entries,
+   tabulated in `doc/CRATES.md`. Single-consumer crates pinned to the
+   canonical version. To adopt one, uncomment the line here and add
+   `{ workspace = true }` in the member's Cargo.toml — do not invent
+   your own version pin.
+3. **Blacklist.** `[[bans.deny]]` in `deny.toml`. Currently:
+   - `anyhow` — libraries use `thiserror`. Binary-only exemption via
+     `wrappers = [...]`.
+   - `clap` — `bpaf` won. Preventive.
+   - `async-trait` — Rust 1.88 has native `async fn in trait`. Use
+     `-> impl Future<Output = ...> + Send` where Send bounds are
+     required.
 
-**Promotion rule.** When a single-consumer (allowed-tier) crate
-gains a second first-party consumer, open a PR here to move its
-line above the allowed-tier fence in `Cargo.toml` and update the
-table in `doc/CRATES.md`.
+**Promotion.** When an allowed-tier crate gains a second consumer, PR
+here moves its line above the fence and updates `doc/CRATES.md`.
 
-**Adding a brand-new crate.** Same flow: PR to template-rust adds
-the entry (required- or allowed-tier as appropriate) and updates
-`doc/CRATES.md`. The PR is the place to argue why the crate earns
-its spot — second-tier alternatives, maintenance status,
-duplicate-version risk, etc. Until the PR lands, the crate may not
-appear in any first-party Cargo.toml.
+**New crates.** PR to template-rust adds the entry and updates
+`doc/CRATES.md`. The PR is the place to argue why the crate earns its
+spot. Until it lands, the crate may not appear in any first-party
+Cargo.toml.
 
-`cargo deny check` enforces the blacklist; no automated check
-enforces required vs. allowed (that's a code-review job). The
-`multiple-versions = "warn"` rule in `deny.toml` surfaces the most
-common drift signal.
+`cargo deny check` enforces the blacklist; required-vs-allowed is a
+code-review job. The `multiple-versions = "warn"` rule in `deny.toml`
+surfaces drift.
 
-## Be a Good Gardener
+## Repository conventions
 
-Weeds are weeds, regardless of who planted them. Whenever an agent
-encounters a violation of any rule in this file — stale comment
-referencing a renamed identifier, proptest generator bounded to
-dodge a wrap, `expect()` string that lies about its precondition,
-`#[ignore]`d test without a re-enablement plan, missing proptest
-the verification table mandated, etc. — it does not get to silently
-walk past because "I didn't write that."
+### Parallel work
 
-**Minimum bar:**
+At the start of each conversation, ask: "Are any other agent instances
+working in this repo right now?" If yes, a worktree is **mandatory** —
+two agents in the same worktree stall on cargo's `target/` lock. Naming:
+`../<repo>.plan-YYYY-MM-DD-NN` + branch `plan/YYYY-MM-DD-NN` (TDD
+step 1).
 
-- **Flag it.** List the violation in the plan's `## Review` section:
-  `file:line — rule — one-sentence consequence`.
-- **Offer to fix the minor ones.** Local, single-file, no API
-  change, doesn't expand sprint scope: ask the user in chat before
-  merging. ("I noticed `foo/bar.rs:42` still says `old_name`; fold
-  the fix into this branch?") The user decides.
-- **Defer the rest with a tracking note.** If the fix is too big to
-  absorb in the current sprint, the `## Review` entry IS the plan:
-  name the cleanup specifically enough that the next plan branch
-  can pick it up.
+Verify worktrees aren't sharing `target/` (would happen if
+`CARGO_TARGET_DIR` is set or `~/.cargo/config.toml` overrides
+`build.target-dir`):
+`cargo metadata --format-version 1 --no-deps | jq -r .target_directory`
+in each — different paths = safe.
 
-**Review labels are not discounts.** Treat review comments labeled
-"optional", "nit", "follow-up", "future", suppressed, or
-low-confidence with the same seriousness as any other comment. If the
-comment is local, correct, and small enough to fit the sprint, fix it
-now. Defer only when it is large, complex, outside the sprint boundary,
-or incorrect; record that reason in the plan's `## Review` section or
-the PR reply.
+### The gardener rule
 
-**What does NOT need surfacing.** Drift CI already catches: `cargo
-fmt --check`, `cargo clippy --all-targets -- -D warnings`,
-`gitleaks`, `scripts/check_pii.sh`. The gate is the safety net for
-those.
+Weeds are weeds, regardless of who planted them. Whenever you spot a
+violation of any rule above — stale comment, mis-bounded proptest
+generator, lying `expect()` string, undocumented `#[ignore]`, missing
+verification-table property — flag it even if you didn't write it.
 
-**What MUST be surfaced.** Anything that lives below the CI gate
-because compilation and clippy are blind to it: stale prose, doc
-links to renamed-away identifiers, decorative tests that pass
-trivially, mis-bounded generators that fake coverage, section
-headers that name the old thing, `expect()` panic strings that
-contradict the actual precondition, deferred properties from a
-previous plan's Verification table that never got written. Those
-are exactly the weeds humans don't notice on a fast skim.
+- **Flag** in the plan's `## Review` section: `file:line — rule —
+  consequence`.
+- **Fix** if local, single-file, no API change, no scope expansion —
+  ask the user before merging.
+- **Defer** otherwise — name the cleanup specifically enough for the
+  next plan branch to pick up.
 
-This rule applies to every agent — `feat:`, `debt:`, `fix:`, the
-review agents, `/pr-watch` auto-fix. A `feat:` agent that walks past
-a stale comment in the file it's editing plants a weed that sprouts
-three sprints later, when somebody trusts the comment and writes
-code based on it.
+Review labels ("optional", "nit", "follow-up", suppressed,
+low-confidence) are not discounts. Treat with the same seriousness;
+defer only when large, complex, outside the sprint, or incorrect.
 
-This repo is your garden, please treat it with love and care.
+CI gates (fmt, clippy, gitleaks, the `check_*.sh` scripts) catch their
+own drift. The gardener rule covers what lives *below* the gate: prose,
+doc links, decorative tests, mis-bounded generators, stale section
+headers, panic strings that contradict preconditions, deferred
+Verification-table properties.
 
-## Test-Driven Development Workflow
+### Git hooks
 
-Every sprint follows this order. Naming is keyed to the plan filename:
-a plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
-`plan/YYYY-MM-DD-NN` and (if used) worktree `../<repo>.plan-YYYY-MM-DD-NN`.
-One slug, three places.
+Hooks are activated by `git config core.hooksPath .githooks`. Bypass
+(`--no-verify`) only when explicitly authorized; CI re-runs the same
+gates plus a `gitleaks` history scan as defense-in-depth.
 
-1. **Pick the plan filename.** `ls doc/plans/plan-YYYY-MM-DD-*.md` to
-   find the next unused `NN` for today's date (zero-padded, starts at
-   `01`). No writes yet — main stays clean.
-2. **Ask the user: worktree or branch?** Worktree is mandatory if
-   another agent instance is active in this repo; otherwise it's the
-   user's call. Then:
-   - worktree: `git worktree add ../<repo>.plan-YYYY-MM-DD-NN -b plan/YYYY-MM-DD-NN`, `cd` into it.
-   - branch: `git switch -c plan/YYYY-MM-DD-NN`.
-3. **Write the plan** to `doc/plans/plan-YYYY-MM-DD-NN.md` on that branch.
-   The plan's **Verification** table must list the property tests that
-   must pass for the sprint to ship (e.g., "message round-trips through
-   encode/decode", "parser never panics on arbitrary input"). Commit
-   as `plan: <one-line goal>` — this is the sprint-opener, always the
-   first commit on the branch. See the last section for plan formatting.
-4. Write proptest properties and test skeletons that compile but
-   trivially fail. Properties come first — they define the contract.
-5. Implement the module until all tests are green.
-6. Commit on the branch, when green.
-7. **Finalize the sprint docs.** In one commit:
-   - Append Deferred and Review sections to the plan document. If any
-     property tests were `#[ignore]`d during implementation, document
-     the reason and the re-enablement plan here.
-   - Create the review file at `$(scripts/pr_report.py path)` (no
-     argument predicts the next PR number and zero-pads the
-     filename). Header is `# PR #<N> — <title>` followed by a
-     `## Summary` section containing the PR body. This section is
-     consumed verbatim by
-     `gh pr create --body-file <(scripts/pr_report.py body N)`, so
-     write it as the PR description (what & why for a human
-     reviewer) — not a ship-report.
+- **Each pushed commit must be green.** `pre-push` runs
+  `cargo test --workspace` + `cargo clippy --all-targets -- -D warnings`.
+  Intra-branch commits can be transiently red — pre-push is the gate,
+  CI is the source of truth for `origin/main`'s bisect property.
+  `pre-commit` runs the cheap chain on every commit:
+  `cargo fmt --check`, `check_pii.sh`, `check_layers.sh`. There's
+  also an agent `PreToolUse` layer in `.claude/settings.json` that
+  catches PII drift on agent-invoked `git commit*` — but use separate
+  `git add` and `git commit` calls, since chained `add && commit` sees
+  an empty pre-add diff and slips through.
+- **No merge commits.** Always rebase onto main; history is linear.
+- **CI-repair commits are fixups.** `git commit --fixup=<sha>`, then
+  `scripts/git_squash.sh` before push. Review-round commits stay
+  standalone so the audit trail survives.
 
-   This must happen *before* the local review — the reviewer agent
-   reads the plan as context and should see the final version, and
-   local-review command aborts if the review file is missing its
-   `## Summary`. Commit as `doc: Finalize plan NN and PR description`.
-8. Run the local review transition before pushing:
-   - Claude Code: `/pr-review`
-   - Codex/shell: `scripts/pr_review.sh`
-9. Rebase and land on main. First, on the feature branch:
-   `git fetch origin && git rebase origin/main`. Then fast-forward main:
-   - **Branch case**: `git checkout main && git merge --ff-only plan/YYYY-MM-DD-NN`.
-   - **Worktree case**: main is already checked out in the *primary*
-     worktree, so you can't `checkout main` here. `cd` back to the
-     primary and run `git merge --ff-only plan/YYYY-MM-DD-NN` there.
-     Step 10's `git worktree remove` then runs from the primary too.
-10. Clean up: `git worktree remove ../<repo>.plan-YYYY-MM-DD-NN`
-    (worktree case only), then `git branch -d plan/YYYY-MM-DD-NN`.
+### Sprint workflow
 
-### Git Hooks
-
-Three complementary layers guard local changes:
-
-**Layer 1 — Claude Code `PreToolUse`** (`.claude/settings.json`):
-fires on agent-invoked Bash calls matching `git commit*`. Catches
-issues during agent iteration without invoking git for real.
-Limitation: `PreToolUse` runs *before* the matched Bash call's body
-executes, so a chained command like `git add file && git commit -m
-"..."` sees an empty pre-add staged diff at hook time and slips
-through `check_pii.sh`. Use separate `git add` and `git commit`
-calls to keep this layer effective.
-
-**Layer 2 — Git `pre-commit`** (`.githooks/pre-commit`): fires at
-git's standard hook point (after staging, before commit object
-creation). Sees the actual staged content regardless of how the commit
-was invoked. This is the cheap commit-time safety net.
-
-**Layer 3 — Git `pre-push`** (`.githooks/pre-push`): fires once per
-push for non-delete refs. It runs the expensive workspace test and
-clippy suite on the exact state being sent to the remote.
-
-Activate Layers 2 and 3 on a fresh clone:
+The sprint workflow is a finite state machine, not a menu. The full
+review-round lifecycle and `/pr-watch` loop are diagrammed in
+`doc/workflow.md` (the prose here is authoritative if the two
+disagree). Identify the current state before committing, running
+local review, pushing, replying, or merging — take only the documented
+transition. Use `scripts/workflow_state.sh` when the state isn't
+obvious.
 
 ```
-git config core.hooksPath .githooks
+main_clean → on_branch → plan_committed → impl_green → plan_finalized
+  → local_reviewed → pushed → gh_review → items_pulled → round_unpushed
+  → gh_review → merged
 ```
 
-The commit-time chain is blocking:
+Workflow-sensitive actions go through repo scripts/commands:
 
-1. `cargo fmt --all -- --check` — fmt drift aborts the commit. Run
-   `cargo fmt --all` to fix. CI still runs fmt in warn-only mode, so
-   the local hook is the blocking gate that prevents drift from being
-   papered over with a warning.
-2. `scripts/check_pii.sh` — grep the staged diff for absolute
-   user-home paths (`/Users/...` on macOS, `/home/...` on Linux),
-   private-key headers, and common API-token shapes. Fail fast on
-   any match. `scripts/check_pii.sh --tree <ref>` scans a committed
-   tree when checking history or CI state. Allow-list exceptions go
-   in `.pii-allow`.
-3. `scripts/check_layers.sh` — enforce the module partial orders.
+- Local review: `/pr-review` (Claude Code) or `scripts/pr_review.sh`.
+  `/review` is post-push help, **not** the canonical pre-push transition.
+- PR body: `scripts/pr_report.py path` / `body`.
+- GitHub review ingestion: `scripts/pr_report.py reviews`.
+- Replies: `/pr-reply` (wraps `scripts/pr_reply.py` + `pr_report.py reviews`).
+- Merge: `scripts/git_merge.sh`, **not** `gh pr merge`.
 
-The push-time chain is also blocking:
+When a `gh`-backed command errors (auth prompt, network, missing
+permission), surface the error — **don't silently fall back** to git
+plumbing or MCP tools. They almost always do the wrong thing for
+GitHub-side state.
 
-1. `cargo test --workspace` — all tests must pass.
-2. `cargo clippy --all-targets -- -D warnings` — matches CI.
+### Test-driven development (TDD) workflow
 
-These are the automated quality gates; the local review transition
-(`/pr-review` for Claude Code, `scripts/pr_review.sh` for
-Codex/shell) is the manual one. Bypass either Git hook with
-`--no-verify` only when explicitly authorized.
+A plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
+`plan/YYYY-MM-DD-NN` and (optionally) worktree
+`../<repo>.plan-YYYY-MM-DD-NN`. One slug, three places.
 
-CI adds a `gitleaks` job (`.github/workflows/ci.yml`) that scans the
-full history on every PR as defense-in-depth against anything that
-bypasses both local hooks (e.g. `git commit --no-verify`, or a
-clone where `core.hooksPath` was never set).
+1. **Pick the filename.** `ls doc/plans/plan-YYYY-MM-DD-*.md` to find
+   the next unused `NN`. No writes yet — main stays clean.
+2. **Worktree or branch?** Worktree if another agent is active, else
+   user's call. `git worktree add ../<repo>.plan-YYYY-MM-DD-NN -b
+   plan/YYYY-MM-DD-NN` or `git switch -c plan/YYYY-MM-DD-NN`.
+3. **Write the plan.** The Verification table lists property tests
+   that must pass to ship. Commit as `plan: <one-line goal>`.
+4. Write proptest properties + test skeletons that compile but fail.
+5. Implement until green.
+6. Commit on the branch when green.
+7. **Finalize sprint docs** in one commit: append Deferred/Review
+   sections to the plan; create the review file at
+   `$(scripts/pr_report.py path)` with `# PR #<N> — <title>` +
+   `## Summary` (the PR body, written for a human reviewer — not a
+   ship-report). `review-00000.md` is a protected sentinel; real
+   reviews start at `00001`. Commit as `doc: Finalize plan NN and PR
+   description`. **Must precede local review** — the local-review
+   command aborts if `## Summary` is missing.
+8. Run `/pr-review` (or `scripts/pr_review.sh`).
+9. Open the PR:
+   `gh pr create --body-file <(scripts/pr_report.py body N)`.
+10. Rebase + land: `git fetch origin && git rebase origin/main`, then
+    `git merge --ff-only`. (Worktree case: main is checked out in the
+    *primary* worktree, so run the merge from there.)
+11. `git worktree remove ...` (if used), then `git branch -d ...`.
 
-## Code Review Workflow
+### Code review
 
-`doc/workflow.md` has mermaid state diagrams for the review-round
-lifecycle and the `/pr-watch` loop — useful when debugging an
-unexpected situation (stuck fix commit, loop that won't quit). The
-prose below is authoritative; the diagrams are derived views.
+#### Tier 1 — Local (pre-push)
 
-### Review skepticism (read this every time)
+Before pushing, run `/pr-review` (or `scripts/pr_review.sh`). It
+examines `git diff origin/main...HEAD`, appends a
+`## Local review (YYYY-MM-DD)` section, and aborts if the review file
+or `## Summary` is missing.
 
-The reviewer's job is to verify the diff against the contracts the
-diff still ships, not to ratify the plan author's framing.
+If another PR opens between TDD step 7 and your push, the predicted
+review number can drift — re-run `scripts/pr_report.py path` and `mv`
+the file if needed.
 
-**Trait-claim audit (do this first, before anything else).** For
-every new or changed `pub const` of a Galois-connection or
-order-theoretic type, every `iso!` / `conn_l!` / `conn_r!` /
-`compose!` / `triple!` invocation, and every non-derived `Lattice` /
-`Heyting` / `Boolean` / `Ord` / `PartialOrd` / `Hash` / `Eq` impl in
-the diff:
+#### Tier 2 — GitHub (post-push)
 
-  1. Quote the law the type or trait declaration claims.
-  2. Quote the closures or arms in the impl.
-  3. State whether (1) and (2) are consistent.
+CI runs tests + clippy. Auto-review agents and Copilot review the PR.
 
-The audit log is mandatory output even when every item is
-consistent. "All consistent" with no log is a missed audit, not a
-clean audit.
+After GitHub review activity:
+1. `/pr-report <N>` fetches comments and **appends** them to
+   `review-NNNNN.md` (idempotent via `<!-- gh-id: NNNNN -->` markers).
+2. Address findings as **uncommitted edits** in the working tree.
+3. `/pr-reply <N>` posts replies, mirrors them into the doc, and
+   makes ONE atomic commit (code + replies + doc).
+4. `git push` once.
 
-**Test-exception escalation.** Any test renamed with a relaxation
-suffix (`*_total`, `*_relaxed`, `*_partial`, `*_weak`), any "we use
-a weaker predicate", "this case is excluded", "saturates instead
-of", "deferred", or "exception" in the diff or the plan, means the
-author found the strong predicate fails. Until the type declaration
-was *also* weakened, the strong predicate is still what the type
-claims — that gap is `must-fix`, not a test deviation.
+**Do not pre-commit the fix** — `/pr-reply` expects to start from
+`gh_review` (local at-or-behind origin) and produce the round commit
+itself. **Do not merge from `round_unpushed`** — `gh pr merge` is
+GitHub-side and silently drops local commits. Use
+`scripts/git_merge.sh`, which refuses if the branch is ahead of origin.
+Recovery (if a merge already dropped a round commit): cherry-pick the
+stranded SHA into the next plan branch's first commit; don't open a
+tiny standalone PR.
 
-**The plan §Review / Retrospective / Conclusion is presumed
-adversarial framing.** It is the highest-value ratification trap:
-the author has already thought about the diff and written down the
-sentence they want the reviewer to nod at. Treat every claim in
-those sections — "all N lib tests pass under this shape", "tolerated
-via monotone-with-equality", "the test rename is fine because…" —
-as **bullshit until proven otherwise** by going to the diff and
-checking. The plan is read *after* the cold review, not before.
-Anything in §Review that explains away a relaxation or a deferred
-case must be promoted to a must-fix audit unless the type
-declaration was also weakened to match.
+#### Automated poll loop (optional)
 
-### Tier 1 — Local Review (pre-push)
+`/loop 10m /pr-watch <N>` runs the round cycle on a timer. Each tick
+either heartbeats, auto-fixes trivially-clear items + runs the
+`/pr-reply` flow + pushes, or pauses on push failure. Auto-fix scope:
+one file, < 20 lines, no API removal, no cross-module reasoning —
+anything ambiguous is surfaced as **needs you**. The loop **never
+merges** — that's the user's manual gate. See `doc/workflow.md` →
+*`/pr-watch` dynamic-mode loop* for the per-tick state diagram.
 
-The coding agent makes atomic commits as it works. Commits can be as
-small as desired; the pushed branch tip must pass `cargo test` and
-`cargo clippy` via `.githooks/pre-push`.
+### Commit style
 
-Step 7 of the TDD workflow creates the PR's review file with the
-sprint's PR description under a `## Summary` heading. The path comes
-from `scripts/pr_report.py path` — no argument, it predicts the next PR
-number (via `scripts/pr_request.sh`) and emits the zero-padded
-filename, e.g. `doc/reviews/review-00017.md`. The `## Summary`
-section is the single source of truth for the PR body: open the PR
-with `gh pr create --body-file <(scripts/pr_report.py body N)` so
-the GitHub body is a direct copy of the file. Because the
-description is committed *before* push, a PR that gets no review
-comments merges without any extra round-trip — the body is already
-in history. `review-00000.md` is a protected sentinel; real reviews
-start at `00001`.
-
-Before pushing, run the local review transition. Claude Code uses the
-repo-specific `/pr-review` command. Codex and shell users use
-`scripts/pr_review.sh`, which invokes `codex review --base
-origin/main` with the repo conventions and calibration examples. Both
-paths examine `git diff origin/main...HEAD` and the commit log, then
-append findings as a `## Local review (YYYY-MM-DD)` section below the
-summary and commit that review artifact. The local-review command
-aborts if the review file or its `## Summary` section is missing —
-step 7 is a prerequisite. Claude Code's built-in `/review [PR]` may be
-useful after a PR exists, but it is not the canonical pre-push FSM
-transition.
-
-If another issue or PR is opened between running step 7 and opening
-this branch's PR, the predicted number can drift — re-run
-`scripts/pr_report.py path` before pushing and `mv` the old file to the
-new path if needed.
-
-If must-fix items exist, resolve them before pushing. If the review
-is clean, push and open the PR with `--body-file` as above.
-
-### Tier 2 — GitHub Review (post-push)
-
-Once pushed, CI runs `cargo test --workspace` and
-`cargo clippy --all-targets -- -D warnings` (see
-`.github/workflows/ci.yml`). Claude Code Action and/or GitHub Copilot
-perform a second-round review on the PR automatically.
-
-After GitHub review activity, run `/pr-report <N>` to fetch the PR's
-review bodies and inline comments and **append them chronologically to the
-same `doc/reviews/review-NNNNN.md`** used by Tier 1. The command is
-idempotent — it records `<!-- gh-id: NNNNN -->` markers for each appended
-item and skips any id already present, so running it repeatedly only
-appends new comments. The result is one file per PR containing the full
-local + GitHub review history in order.
-
-Apply the [Be a Good Gardener](#be-a-good-gardener) rule when triaging
-all review material. "Optional", "follow-up", suppressed, and
-low-confidence comments are still real review input; fix the small
-correct ones now, and explicitly explain any deferral or push-back.
-
-Once the findings are addressed as **uncommitted edits in the working
-tree**, run `/pr-reply <N>`. The command does the whole round
-in order: posts replies to each unresolved thread, runs
-`scripts/pr_report.py reviews` to mirror the replies into `review-NNNNN.md`,
-then makes ONE atomic commit containing both the code edits and the
-mirrored doc. You then `git push` once — code + replies + review doc
-land in a single round trip.
-
-**Do not commit the fix yourself before running `/pr-reply`.**
-The command runs on the `gh_review → items_pulled → round_unpushed`
-arrow per `doc/workflow.md` — it expects to start from `gh_review`
-(local at-or-behind origin) and produce the round commit itself.
-Pre-committing a fix would put the branch at an unpushed-state that
-breaks the precondition; if you have a stranded pre-existing fix
-commit, push it first, then re-run. `/pr-reply` refuses to run
-if the branch already has unpushed commits.
-
-**Do not merge before pushing the round commit.** Per
-`doc/workflow.md`'s state machine, the merge transition is
-`gh_review → merged` — there is no edge from `round_unpushed → merged`.
-Merging from `round_unpushed` (the state after `/pr-reply`
-makes its commit but before push) silently drops the local commit
-because `gh pr merge` is GitHub-side and doesn't see local state.
-Use `scripts/git_merge.sh <pr-args>` instead of `gh pr merge` —
-the wrapper refuses to invoke the merge while the local branch
-is ahead of origin. Recovery (if a merge already dropped a round
-commit): cherry-pick the stranded SHA into the next plan branch's
-first commit per the bundle-into-next-plan convention; don't open
-a tiny standalone PR.
-
-`/pr-report <N>` remains available as a lower-level primitive for
-fetching comments without posting. Use it standalone only to refresh
-the doc right before the final pre-merge push, to capture any trailing
-reviewer comments; its output rides with the next round commit, never
-as a standalone `doc:` commit.
-
-The local review catches design issues and convention violations early.
-The GitHub review catches anything that slipped through and validates in
-the CI environment. Joining them into a single file per PR preserves the
-conversational flow and keeps the review record in one place.
-
-### PR Polling (optional)
-
-For PRs where you don't want to manually ping "check the replies", pair
-`/pr-watch <N>` with `/loop`:
-
-```
-/loop 10m /pr-watch 17
-```
-
-Each tick does one of: (a) heartbeat if no new activity, (b) one
-finish-the-round cycle — auto-fix the trivially-clear items, push back
-or defer the rest, run the `/pr-reply` flow, **push the round
-commit**, or (c) `paused at round_unpushed: push failed` if the push
-itself errored (network, non-fast-forward).
-
-Auto-fix is scoped tightly: only items where the reviewer's intent is
-unambiguous and the change is local (one file, under ~20 lines, no
-API removal, no cross-module reasoning). Anything involving judgment
-is classified as **needs you** and surfaced in the round report with
-`path:line` — those threads stay open on GitHub for you to resolve.
-The [Be a Good Gardener](#be-a-good-gardener) rule still applies:
-"optional", "follow-up", suppressed, and low-confidence labels do not
-demote a correct local fix.
-
-The command never **merges**. The merge is the user's safety gate:
-each PR is reviewed manually before `gh pr merge` /
-`scripts/git_merge.sh`. Pushing the round commit advances the
-branch to `gh_review` so CI re-runs and the reviewer sees replies
-attached to the right tip — that's normal mid-PR motion, not a risk
-worth gating on.
-
-### Commit Style
-
-Conventional commits, present-tense imperative subject. Accepted prefixes:
-`plan`, `feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`. Scopes are
-allowed (e.g. `doc(skills):`, `fix(scripts):`).
-
-- `plan:` lands a new plan doc in `doc/plans/` — always the first
-  commit on a `plan/YYYY-MM-DD-NN` branch.
-- `feat:` and the rest cover the implementation that follows.
+Conventional commits, present-tense imperative subject. Accepted
+prefixes: `plan`, `feat`, `fix`, `fmt`, `doc`, `test`, `task`, `debt`.
+Scopes allowed (`doc(skills):`, etc.). Sprint-opener is a `plan:`
+commit adding the plan doc; subsequent commits cover the
+implementation.
 
 ```
 plan: Widget-format parser, sprint goals and verification table
 feat: Add parser for widget format
 fix(codec): Handle timeout on reconnect
 test: Add round-trip property tests for codec
-doc: Append Sprint 2 completion report
-task: Add serde to core dependencies
 debt: Remove dead handshake branch
 ```
 
-Keep subjects under 72 characters. Use the body for non-obvious decisions.
+Keep subjects under 72 characters. Use the body for non-obvious
+decisions.
 
-## Sprint Plan Format
+## Sprint plan format
 
 ```markdown
 # Plan NN — Title
@@ -640,43 +340,33 @@ Keep subjects under 72 characters. Use the body for non-obvious decisions.
 One sentence.
 
 ## Dependency Graph
-ASCII art showing task dependencies (T1 → T2, T3 → T4, etc.)
+T1 → T2, T3 → T4, ...
 
 ## Tasks
-Each task is T1, T2, etc. Each task section includes:
-- Problem or motivation
-- Solution / implementation approach
-- Types or API surface
+T1, T2, ... — each with: problem/motivation, solution/approach,
+types or API surface.
 
 ## Verification
 
 ### Properties (must pass)
-Table of proptest property names, the module they live in, and the
-invariant they assert. These are the contract — if a property can't
-be satisfied, the sprint isn't done.
-
 | Property | Module | Invariant |
 |----------|--------|-----------|
 | `msg_round_trips` | `crate_foo::codec` | encode then decode recovers original |
 
 ### Spot checks
-Table of unit test names + specific assertions.
+Unit test names + specific assertions.
 
 ### Build gates
-- cargo build — no errors
-- cargo test — all pass (no `#[ignore]` without Review documentation)
-- cargo clippy --all-targets — no errors
+- cargo build, test, clippy --all-targets — all clean
 - End-to-end scenario description
 
 ## Deferred
-What was intentionally left out and why.
+What was intentionally left out, why.
 
 ## Review
-- Any `#[ignore]`d properties: which ones, why, re-enablement plan
+- Any `#[ignore]`d properties — which, why, re-enablement plan
 - Design deviations from the plan
 - **Drift caught** (file:line — rule — fixed-here / deferred). See
-  "The gardener rule" above. Even a clean sprint usually finds a few
-  stale comments or test names; an empty list usually means the
-  agent didn't look.
+  the gardener rule.
 - Recommendations
 ```
