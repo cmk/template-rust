@@ -1,4 +1,4 @@
-# PR #28 - Review Fixups and Autosquash Finalization
+# PR #29 - Review Fixups and Autosquash Finalization
 
 ## Summary
 
@@ -18,4 +18,3 @@ The workflow docs, Claude command playbooks, template-sync manifest, and Python 
 ---
 
 The changes consistently update the workflow to use transient fixup commits, add a final autosquash gate, and extend merge protection. The new scripts and tests cover the main intended paths, and I did not find a discrete introduced bug that would block correctness.
-
