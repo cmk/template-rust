@@ -1,5 +1,5 @@
 ---
-description: Poll a PR for new review comments; auto-address the trivially-clear ones, run the full /pr-reply flow, then push the round commit. Designed for /loop-driven automation (e.g., `/loop 10m /pr-watch 17`). Never merges — the user merges manually, which is the real safety gate.
+description: Poll a PR for new review comments; auto-address the trivially-clear ones, run the full /pr-reply flow, then push transient round fixups. Designed for /loop-driven automation (e.g., `/loop 10m /pr-watch 17`). Never merges — the user finalizes and merges manually.
 argument-hint: <pr-number>
 ---
 
@@ -7,15 +7,17 @@ argument-hint: <pr-number>
 
 One tick of the polling loop: check for new reviewer activity, handle
 the clear-cut items, leave everything else for the user, push the
-round commit, stop before merge.
+round fixups, stop before merge.
 
 Target PR: `$ARGUMENTS`
 
 **Never merge.** The user reviews each PR before merging, and that's
-the real safety gate. Pushing the round commit so CI re-runs and the
+the real safety gate. Pushing the round fixups so CI re-runs and the
 PR shows the latest replies is a normal step in the loop — not a
 risk worth gating on, since the user can always revert or push more
 fixes before deciding to merge.
+Before merge, the user runs `scripts/git_autosquash_finalize.sh` to
+collapse transient fixups and rerun full gates.
 
 Designed for `/loop 10m /pr-watch <N>` (or similar cadence). Each tick
 runs one round or exits quickly with a heartbeat.
@@ -112,7 +114,7 @@ wrong code; a miscategorized ask only delays a round by one loop tick
 until the user resolves it.
 
 Apply AGENTS.md's
-[Be a Good Gardener](../../AGENTS.md#be-a-good-gardener) rule during
+[gardener rule](../../AGENTS.md#the-gardener-rule) during
 triage. Labels such as "optional", "nit", "follow-up", suppressed, or
 low-confidence do not lower the seriousness of a correct comment. Fix
 small local items now; defer only when the fix is large, complex,
@@ -145,15 +147,14 @@ For each **auto-fix** item:
    before running tests (faster feedback).
 
 **Do not commit yet.** The whole round (code fix + replies + mirrored
-doc) is committed once in Step 4 as a single atomic commit. This
+doc) is committed in Step 4 as transient review-round commits. This
 matches the FSM in `doc/workflow.md`: `items_pulled → round_unpushed`
 is a single transition; there is no intermediate `fix_unpushed` state.
 
-If no auto-fix items apply (all push-back / defer / ask), Step 4's
-commit will be `doc:`-prefixed when the only staged change is the
-review mirror.
+If no auto-fix items apply (all push-back / defer / ask), Step 4 may
+only create the review-doc fixup.
 
-## Step 4: Post replies, mirror, and commit the round atomically
+## Step 4: Post replies, mirror, and commit the round fixups
 
 For each **auto-fix**, **push-back**, and **defer** thread from Step 2,
 compose a 1–3 sentence reply per the rules in
@@ -169,23 +170,17 @@ for each thread: scripts/pr_reply.py <N> <in_reply_to_id> "<body>"
 # Mirror replies back into the review doc
 scripts/pr_report.py reviews <N>
 
-# Single atomic commit: code edits (if any) + mirrored review doc.
-# Ask-only rounds still keep the pull-only review-doc delta from Step 1.
-git add -A
-if git diff --cached --quiet; then
-    # Nothing staged — branch stays at gh_review. Step 5's
-    # "no commit" report branch fires.
-    :
-else
-    # Pick prefix based on staged content:
-    #   fix:  any staged change outside doc/reviews/*.md
-    #   doc:  only doc/reviews/<file>.md changed (mirror/replies-only round)
-    if git diff --cached --name-only | grep -Eqv '^doc/reviews/.*\.md$'; then
-        commit_prefix=fix
-    else
-        commit_prefix=doc
-    fi
-    git commit -m "$commit_prefix: Address review feedback on PR #<N>"
+# Mechanical code/test/product-doc fixes become implementation fixups.
+git add -A ':!doc/reviews/*.md'
+if ! git diff --cached --quiet; then
+    git commit --fixup=<latest-implementation-commit>
+    # Use standalone `fix:`/`feat:` only for design-changing feedback.
+fi
+
+# Mirrored review-doc changes become finalized-doc fixups.
+git add doc/reviews/review-NNNNN.md
+if ! git diff --cached --quiet; then
+    git commit --fixup=<finalized-doc-commit>
 fi
 ```
 
@@ -209,10 +204,10 @@ clean: the next tick's Step 1 mirrors the already-posted replies, the
 "unreplied threads" filter skips them, and the missing posts go
 through. (Same as `/pr-reply`'s Recovery section.)
 
-## Step 5: Push the round commit
+## Step 5: Push the round commits
 
-If Step 4 produced a commit (the working tree had staged changes —
-either code edits or the mirrored reply doc), push it now:
+If Step 4 produced commits (the working tree had staged changes —
+either code edits or the mirrored reply doc), push them now:
 
 ```
 git push origin "$branch"
@@ -221,9 +216,9 @@ git push origin "$branch"
 This advances the branch to `gh_review` so CI re-runs against the
 latest state and the reviewer (Copilot, the user) sees the replies
 attached to the right tip. The user is still the merge gate — they
-review the PR as a whole before invoking `gh pr merge` /
-`scripts/git_merge.sh`. A round commit reaching origin without
-their merge is the normal mid-PR state, not a risk to gate on.
+review the PR as a whole, run `scripts/git_autosquash_finalize.sh`,
+then invoke `scripts/git_merge.sh`. Round fixups reaching origin
+without their merge are the normal mid-PR state, not a risk to gate on.
 
 If Step 4 produced no commit, skip this step. There is nothing to push.
 That should now mean Step 1 had no doc delta and no replies/code edits
@@ -231,12 +226,12 @@ were produced; ask-only rounds with newly mirrored review comments
 normally produce a `doc:` commit and are pushed.
 
 If `git push` fails (network, auth, non-fast-forward because someone
-else pushed), exit with the error and leave the round commit local.
+else pushed), exit with the error and leave the round commits local.
 Run `mkdir -p .pr-watch`, then record the failed `HEAD` in
 `.pr-watch/pr-<N>.push-failed-head` before exiting so the next tick's
-Step 0d can retry only that exact stranded round commit.
+Step 0d can retry only that exact stranded round tip.
 
-**Never merge.** `gh pr merge` is a manual user step.
+**Never merge.** Finalization and merge are manual user steps.
 
 ## Step 6: Report
 
@@ -244,19 +239,20 @@ Print a structured summary, ≤ 15 lines. The heading names the FSM
 state from `doc/workflow.md` so the read-out reflects what's actually
 true on the wire.
 
-If Step 5 pushed a commit:
+If Step 5 pushed commits:
 
 ```
-pr-watch PR #<N> — round complete at gh_review (commit pushed)
+pr-watch PR #<N> — round complete at gh_review (commits pushed)
   auto-fixed:  <count>   (e.g., "unused import, typo in doc")
   pushed-back: <count>   (e.g., "proposed rename conflicts with crate boundary")
   deferred:    <count>
   needs you:   <count>   ← these stay open; read them
     - path:line — one-line summary
     - path:line — one-line summary
-  round commit: <sha>    (pushed — fix: or doc:)
-  next step:   wait for CI + Copilot re-review, then merge with
-               `gh pr merge` / `scripts/git_merge.sh` when ready.
+  round commits: <sha...> (pushed — transient fixups or standalone fix/feat)
+  next step:    wait for CI + Copilot re-review, then finalize with
+                `scripts/git_autosquash_finalize.sh` and merge with
+                `scripts/git_merge.sh` when ready.
 ```
 
 If Step 4 produced no commit:
@@ -268,7 +264,7 @@ pr-watch PR #<N> — round complete at gh_review (no commit needed)
   deferred:    0
   needs you:   <count>
     - path:line — one-line summary
-  round commit: none — no staged code, replies, or review-doc delta
+  round commits: none — no staged code, replies, or review-doc delta
   next step:   PR is mergeable when reviewers stop posting.
 ```
 
@@ -278,7 +274,7 @@ If Step 5's `git push` failed:
 pr-watch PR #<N> — paused at round_unpushed (push failed)
   auto-fixed:  <count>
   ...
-  round commit: <sha>    (LOCAL ONLY — push failed: <error>)
+  round commits: <sha...> (LOCAL ONLY — push failed: <error>)
   next step:   investigate the push failure, then `git push` manually.
 ```
 

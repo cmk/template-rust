@@ -278,6 +278,11 @@ class TemplateSyncTests(unittest.TestCase):
             self.assertEqual(r.returncode, 2)
             self.assertIn("usage:", r.stderr)
 
+    def test_manifest_includes_autosquash_finalize_workflow_files(self) -> None:
+        self.assertIn("scripts/git_autosquash_finalize.sh", self.verbatim)
+        self.assertIn("tests/test_git_autosquash_finalize.py", self.verbatim)
+        self.assertIn("tests/test_git_merge.py", self.verbatim)
+
 
 if __name__ == "__main__":
     unittest.main()

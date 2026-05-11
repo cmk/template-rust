@@ -12,8 +12,8 @@ show up as real graphs on the PR page.
 ## Review round lifecycle
 
 One sprint from `main` through merge, covering Tier 1 (local) review,
-Tier 2 (GitHub) rounds, and the fix-edits → reply → mirror → commit →
-push motion that `/pr-reply` enforces.
+Tier 2 (GitHub) rounds, and the fix-edits → reply → mirror → fixup →
+push → autosquash motion that `/pr-reply` and finalization enforce.
 
 ```mermaid
 stateDiagram-v2
@@ -27,39 +27,49 @@ stateDiagram-v2
     local_reviewed --> pushed: clean, git push
     pushed --> gh_review: CI runs + reviewers post
     gh_review --> items_pulled: /pr-report (scripts/pr_report.py reviews)
-    items_pulled --> round_unpushed: edit working tree + /pr-reply (post + mirror + atomic commit)
-    round_unpushed --> gh_review: git push (mandatory before merge)
-    gh_review --> merged: no more items, scripts/git_merge.sh (after push check)
+    items_pulled --> round_unpushed: edit working tree + /pr-reply (post + mirror + fixups)
+    round_unpushed --> gh_review: git push (mandatory before finalization)
+    gh_review --> autosquash_finalized: scripts/git_autosquash_finalize.sh
+    autosquash_finalized --> gh_review: reviewers post more items
+    autosquash_finalized --> merged: scripts/git_merge.sh
     merged --> [*]
 ```
 
 **Legend:**
-- `round_unpushed` is the load-bearing state — one atomic commit
-  containing both the code fix and the mirrored reply doc, sitting
-  unpushed on the local branch. `/pr-reply` produces it in one
-  flow: refresh via `scripts/pr_report.py reviews` → identify unreplied
-  threads → post replies via `scripts/pr_reply.py` → refresh
-  again to mirror via `scripts/pr_report.py reviews` → `git add -A &&
-  git commit`. There is no `--amend` step and no prior fix commit
-  to amend onto; replies and code arrive together by construction.
+- `round_unpushed` is the load-bearing state — one review round
+  sitting unpushed on the local branch. Mechanical code/test/product-doc
+  fixes are `fixup!` commits against the implementation commit they
+  repair; review-doc mirror changes are a separate `fixup!` against
+  the finalized-doc commit. Design-changing feedback may remain a
+  standalone `fix:` or `feat:` commit, still paired with a review-doc
+  fixup when the mirror changed.
 - The `gh_review → items_pulled → round_unpushed → gh_review` cycle
   runs once per review round. The transition out of `round_unpushed`
-  is `git push` — that's the only way to advance to mergeability.
+  is `git push` — that's the only way to return to GitHub review.
+  Mergeability requires a later `autosquash_finalized` pass.
 - **Never merge from `round_unpushed`.** There is no
   `round_unpushed → merged` edge in the FSM — only `gh_review →
-  merged`. `gh pr merge` is GitHub-side and doesn't see local state,
-  so a merge with an unpushed round silently drops the local commit.
+  autosquash_finalized → merged`. `gh pr merge` is GitHub-side and
+  doesn't see local state, so a merge with an unpushed round silently
+  drops the local commit.
   Use `scripts/git_merge.sh <pr-args>` instead of `gh pr merge` —
   it refuses to invoke the merge while the local branch is ahead of
   origin. (Equivalent local check: `git log origin/<branch>..HEAD
   --oneline` must be empty.)
+- **Never merge before `autosquash_finalized`.** Review fixups may be
+  pushed during the review loop so CI and reviewers see the response,
+  but main should receive the cleaned branch. Run
+  `scripts/git_autosquash_finalize.sh`; it autosquashes against
+  `origin/main`, reruns full gates, and force-pushes with lease.
+  `scripts/git_merge.sh` refuses PR heads that still contain
+  `fixup!`, `amend!`, or `squash!` commits.
 - `local_reviewed → impl_green` is the must-fix loop-back. The fix
   commits stay on the same branch; re-append any new Deferred/Review
   notes, then re-run the local review transition (`/pr-review` for
   Claude Code, `scripts/pr_review.sh` for Codex/shell) against the
   new tip.
 - Review triage follows AGENTS.md's
-  [Be a Good Gardener](../AGENTS.md#be-a-good-gardener) rule:
+  [gardener rule](../AGENTS.md#the-gardener-rule):
   "optional", "follow-up", suppressed, and low-confidence comments are
   treated seriously unless they are large, complex, out of scope, or
   incorrect.
@@ -131,7 +141,7 @@ stateDiagram-v2
     triaging --> auto_fixing: auto-fix items present
     triaging --> replying: no auto-fix, replies only
     auto_fixing --> replying
-    replying --> pushing: round commit ready
+    replying --> pushing: round fixups ready
     pushing --> reschedule_active: push OK, count=0
     pushing --> reschedule_quiet: push failed (network / non-ff)
     reschedule_quiet --> quitting: count > 5

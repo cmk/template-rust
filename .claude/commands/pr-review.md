@@ -1,5 +1,5 @@
 ---
-description: Tier-1 local pre-push code review. Invokes scripts/pr_review.sh, which runs codex review against origin/main, appends findings to doc/reviews/review-NNNNN.md, and commits the review artifact. The agent does not author the reviewer prompt.
+description: Tier-1 local pre-push code review. Invokes scripts/pr_review.sh, which runs codex review against origin/main, appends findings to doc/reviews/review-NNNNN.md, and commits the review artifact as a finalized-doc fixup. The agent does not author the reviewer prompt.
 argument-hint: (no args)
 ---
 
@@ -12,7 +12,8 @@ code review. This is Tier 1 of a two-tier system:
 - **Tier 1 (this command):** `scripts/pr_review.sh` runs `codex review
   --base origin/main` against the branch. Codex auto-loads `AGENTS.md`
   + `doc/reviews/calibration.md` from disk as its system prompt.
-  Output is appended to `doc/reviews/review-NNNNN.md` and committed.
+  Output is appended to `doc/reviews/review-NNNNN.md` and committed
+  as a fixup to the finalized-doc commit.
 - **Tier 2 (GitHub):** After push, CI runs `cargo test --workspace`
   and `cargo clippy --all-targets -- -D warnings` (see
   `.github/workflows/ci.yml`). Claude Code Action and/or Copilot
@@ -28,20 +29,22 @@ command exists to prevent: the agent shaping its own review.
 
 ---
 
-## Step 0: Autosquash any pending fixups
+## Step 0: Check pending fixups
 
-Per AGENTS.md, CI-repair commits are made as `--fixup`s and must be
-collapsed before review/push. Refresh the remote-tracking ref first so
-the check isn't against a stale base, then scan for fixups:
+Per AGENTS.md, mechanical repairs are made as `--fixup`s. They may
+remain transient during review, but they must be collapsed before
+merge by `scripts/git_autosquash_finalize.sh`. Refresh the
+remote-tracking ref first so the check isn't against a stale base,
+then scan for fixups:
 
 ```
 git fetch --quiet origin main
 git -c color.ui=never log --oneline origin/main..HEAD | grep -E '^[0-9a-f]+ fixup!' || true
 ```
 
-If any fixups exist, run `scripts/git_squash.sh` to collapse them.
-Abort if the working tree is dirty (the script checks this). After
-autosquash, re-run the fixup check to confirm the branch is clean.
+If fixups exist, do not squash them as part of `/pr-review`; they are
+expected until finalization. If the branch is otherwise ready to merge,
+run `scripts/git_autosquash_finalize.sh` instead of this command.
 
 ## Step 1: Verify prerequisites
 
@@ -75,7 +78,8 @@ origin/main`, reads `AGENTS.md` automatically as the reviewer system
 prompt (that's the contract — the reviewer's instructions live in
 `AGENTS.md` and `doc/reviews/calibration.md` on disk, not in this
 file), appends a `## Local review (YYYY-MM-DD)` section to the review
-file, and commits that review artifact.
+file, and commits that review artifact as a fixup to the commit that
+created the finalized review doc.
 
 **Do not author a prompt. Do not pass context to a subagent. Do not
 launch an agent yourself.** The orchestrator (you) has zero authoring
@@ -102,7 +106,7 @@ onward.)
 For each item in the codex review's **Must fix before push** and
 **Follow-up (future work)** sections, classify into exactly one
 bucket — same heuristic as `/pr-watch` and the
-[Be a Good Gardener](../../AGENTS.md#be-a-good-gardener) rule:
+[gardener rule](../../AGENTS.md#the-gardener-rule):
 
 - **auto** — change is local (one file, under ~20 lines),
   non-destructive (no API removal, no file deletion), and does not
@@ -130,19 +134,19 @@ the scope of the reviewer's comment — no adjacent cleanup, no "while
 I'm here" changes. If multiple items touch the same file, batch the
 edits before running tests.
 
-Then commit:
+Then commit. Mechanical local-review cleanups use fixups by default:
 
 ```
 git add <edited files>
-git commit -m "<prefix>: Address pr-review feedback"
+git commit --fixup=<latest-implementation-commit>
 ```
 
-Use the prefix that matches the nature of the fixes:
-`fix:` (bug), `debt:` (mechanical cleanup), `test:` (test additions),
-`doc:` (doc nits). Mix-and-match isn't possible in one commit — if
-the auto items split across categories, pick the predominant one. If
-there are no auto-fixes, do not make another commit; `pr_review.sh`
-already committed the local-review artifact.
+Use the latest non-plan, non-review-doc implementation commit as the
+default target. If the reviewer feedback changes design or follow-up
+behavior rather than mechanically repairing an existing commit, use a
+standalone `fix:` or `feat:` commit instead. If there are no
+auto-fixes, do not make another commit; `pr_review.sh` already
+committed the local-review artifact as a doc fixup.
 
 The pre-commit hook runs `cargo fmt --check`, `scripts/check_pii.sh`,
 and `scripts/check_layers.sh`. The pre-push hook runs
