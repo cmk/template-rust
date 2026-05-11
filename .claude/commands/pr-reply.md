@@ -1,5 +1,5 @@
 ---
-description: Finalize a PR review round before push. Apply fix edits to the working tree first, then run this command — it posts replies, mirrors them back into review-NNNNN.md via scripts/pr_report.py reviews, and produces ONE atomic commit containing both the code fix and the mirrored reply doc. One push delivers the whole round. Refuses to run if the branch already has unpushed commits (which would create a split two-commit review round).
+description: Finalize a PR review round before push. Apply fix edits to the working tree first, then run this command — it posts replies, mirrors them back into review-NNNNN.md via scripts/pr_report.py reviews, and produces transient fixup commits by default. One push delivers the whole round. Refuses to run if the branch already has unpushed commits from another round.
 argument-hint: <pr-number>
 ---
 
@@ -7,17 +7,16 @@ argument-hint: <pr-number>
 
 Apply fix edits to the working tree, then run this command. It posts
 replies to each unresolved PR review thread, mirrors them back into
-`doc/reviews/review-NNNNN.md`, and produces **one atomic commit**
-containing both the code fix and the mirrored reply doc. Stops before
-`git push` — the user runs that explicitly as the last step, so one
-push delivers code + replies + review doc.
+`doc/reviews/review-NNNNN.md`, and produces the round's transient
+commits. Stops before `git push` — the user runs that explicitly as
+the last step, so one push delivers code + replies + review doc.
 
-This ordering — **fix-edits (uncommitted) → reply → mirror → atomic
-commit → push** — is deliberate. The `replies_amended` state from the
-older flow is gone: replies and code are bundled into a single commit
-by construction, so the only state between "round started" and
-"round pushed" is `round_unpushed`. There is no `--amend` step and no
-opportunity for replies and fix to diverge.
+This ordering — **fix-edits (uncommitted) → reply → mirror → fixup
+commit(s) → push** — is deliberate. Mechanical code/test/product-doc
+fixes become `fixup!` commits against the implementation commit they
+repair, and review-doc mirror changes become a separate `fixup!`
+against the finalized-doc commit. Design-changing feedback may remain
+as a standalone `fix:` or `feat:` commit.
 
 Target PR: `$ARGUMENTS`
 
@@ -57,9 +56,8 @@ unpushed=$(git log "origin/$branch..HEAD" --oneline)
 
 - If `unpushed` is non-empty: **refuse**. Print:
   > Branch '$branch' has unpushed commits. Per doc/workflow.md, a new
-  > review round starts from `gh_review` — push the existing commit
-  > first (`git push`), then re-run `/pr-reply`. If the existing
-  > commit is itself a stale round-1, just push it.
+    > review round starts from `gh_review` — push the existing
+    > transient round first (`git push`), then re-run `/pr-reply`.
 
   Do not post replies.
 
@@ -67,14 +65,14 @@ unpushed=$(git log "origin/$branch..HEAD" --oneline)
 
 Run `git status`. The working tree may be **dirty with the round's fix
 edits** — that's expected and is exactly what this command bundles
-into the round commit. No constraint on which paths can be dirty;
+into the round commits. No constraint on which paths can be dirty;
 trust the user not to bundle unrelated changes. The pre-commit hook
 (Step 6) will catch test/clippy/PII regressions.
 
 If the working tree is **clean**, this is a no-op-code round (all
-push-back / defer). Proceed normally — the round commit will be a
-`doc:`-prefixed commit containing only the mirrored reply doc, which
-is fine and does not break the FSM.
+push-back / defer). Proceed normally — the round may only create a
+review-doc fixup containing the mirrored reply doc, which is fine and
+does not break the FSM.
 
 ## Step 1: Refresh the review doc before deciding what to reply to
 
@@ -131,7 +129,7 @@ Rules:
 - One reply per thread, not per comment. If a thread already has a
   human-authored reply buried, don't post another.
 - Apply AGENTS.md's
-  [Be a Good Gardener](../../AGENTS.md#be-a-good-gardener) rule:
+  [gardener rule](../../AGENTS.md#the-gardener-rule):
   "optional", "follow-up", suppressed, and low-confidence comments are
   real review input. Fix small correct items now; defer only when they
   are large, complex, outside scope, or incorrect, and say why.
@@ -168,29 +166,27 @@ scripts/pr_report.py reviews <N>
 The script appends the replies you just posted (plus anything else new)
 to `review-NNNNN.md` via set-membership de-dup — safe to re-run.
 
-## Step 6: Atomic round commit
+## Step 6: Transient round commits
 
-Stage everything in the working tree (code edits + mirrored doc) and
-make ONE commit, but **only if there are staged changes** — an
-all-`ask` round with no doc delta produces nothing to commit:
+Commit staged changes, but **only if there are changes** — an all-`ask`
+round with no doc delta produces nothing to commit. Keep review-doc
+mirror changes separate from implementation fixups so autosquash never
+moves them before the commit that creates `doc/reviews/review-NNNNN.md`:
 
 ```
-git add -A
-if git diff --cached --quiet; then
-    # Nothing staged — no replies posted (e.g., all `ask`) and no
-    # doc delta from Step 5. Branch stays at gh_review. Step 7's
-    # "no commit" report branch fires.
-    :
-else
-    # Pick the prefix that matches the staged content:
-    #   fix:  any staged change outside doc/reviews/*.md
-    #   doc:  only doc/reviews/<file>.md changed (replies-only round)
-    if git diff --cached --name-only | grep -qv '^doc/reviews/.*\.md$'; then
-        prefix=fix
-    else
-        prefix=doc
-    fi
-    git commit -m "$prefix: Address review feedback on PR #<N>"
+# Commit non-review-doc changes first.
+git add -A ':!doc/reviews/*.md'
+if ! git diff --cached --quiet; then
+    # Mechanical default:
+    git commit --fixup=<latest-implementation-commit>
+    # If the feedback changes design/behavior, use a standalone
+    # `fix:` or `feat:` commit instead.
+fi
+
+# Commit mirrored review-doc changes as their own doc fixup.
+git add doc/reviews/review-NNNNN.md
+if ! git diff --cached --quiet; then
+    git commit --fixup=<finalized-doc-commit>
 fi
 ```
 
@@ -204,7 +200,7 @@ If either fails:
 - Replies are already on GitHub (Step 4 succeeded). Don't try to
   un-post; just commit when ready.
 
-There is no `--amend` step. The commit either succeeds (whole round
+There is no `--amend` step. The commits either succeed (whole round
 captured, state advances to `round_unpushed`) or:
 
 - The pre-commit hook fails: working tree still dirty, replies on
@@ -218,18 +214,18 @@ Print a one-paragraph summary that **names the FSM state from
 `doc/workflow.md`** so the read-out reflects what's actually true on
 the wire. Two terminal shapes:
 
-**If Step 6 made a commit:**
+**If Step 6 made commits:**
 
 - Number of threads replied to
-- Round commit SHA
+- Round commit SHAs
 - **State:** `round_unpushed` (mid-cycle, NOT mergeable). The merge
-  transition starts from `gh_review`, which requires push.
+  transition requires push, then `scripts/git_autosquash_finalize.sh`.
 - **Next step for the user:** `git push` (or `git push -u origin
-  <branch>` if this is the first push for the branch). Then merge
-  via `scripts/git_merge.sh <pr-args>` rather than `gh pr merge` —
-  the wrapper refuses to invoke the merge while the local branch is
-  ahead of origin, which is the only protection against silently
-  dropping an unpushed round.
+  <branch>` if this is the first push for the branch). Before merge,
+  run `scripts/git_autosquash_finalize.sh`. Then merge via
+  `scripts/git_merge.sh <pr-args>` rather than `gh pr merge` — the
+  wrapper refuses to invoke the merge while the local branch is ahead
+  of origin or still contains autosquashable commits.
 
 **If Step 6 made no commit** (all-`ask` round or every reply was
 already a duplicate of an existing one — no code delta, no doc
@@ -258,7 +254,7 @@ replies. Some replies are on GitHub, some aren't. Re-run
 2. Step 2's "unreplied threads" filter skips threads that now have
    `↳ {user}` mirrored replies — only the unposted threads remain.
 3. Steps 3–5 cover the missing posts and re-mirror.
-4. Step 6 commits everything.
+4. Step 6 commits the transient round fixups.
 
 `pr_reply.py` is **not** idempotent server-side — calling it twice
 with the same `in_reply_to_id` posts twice. Idempotency comes from
@@ -270,8 +266,8 @@ Step 1 on retry.
 Replies are on GitHub. Working tree has code edits + mirrored doc,
 all uncommitted. Fix the test/clippy/PII issue, then either:
 
-- **`git commit` manually**: same staging, same message. The
-  pre-commit hook re-runs.
+- **`git commit` manually**: use the same fixup target. The pre-commit
+  hook re-runs.
 - **Re-run `/pr-reply`**: Step 0b sees no unpushed commits, Step
   1+2 see no unreplied threads (all already mirrored), Steps 3–5 are
   no-ops, Step 6 retries the commit.
@@ -285,6 +281,6 @@ Both paths converge on the same `round_unpushed` state.
   authored reply closes the thread.
 - **One reply per thread, not per comment.** If a thread already has
   a human reply, don't post another.
-- **The whole round is one commit.** Never two commits per round
-  (a `fix:` then a `doc:`) — that defeats the atomicity guarantee
-  this command exists to provide.
+- **The whole round is one push.** Mechanical code fixes and review-doc
+  mirrors are separate fixups when both exist, pushed together, then
+  collapsed by `scripts/git_autosquash_finalize.sh` before merge.

@@ -32,10 +32,6 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-if git -c color.ui=never log --oneline origin/main..HEAD | grep -E '^[0-9a-f]+ fixup!' >/dev/null; then
-  scripts/git_squash.sh
-fi
-
 if git diff --quiet origin/main...HEAD; then
   echo "error: nothing to review against origin/main" >&2
   exit 1
@@ -127,6 +123,14 @@ git add -- "$review_file"
 if git diff --cached --quiet; then
   printf 'local review appended with no staged delta: %s\n' "$review_file"
 else
-  git commit -m "doc: Append local review"
+  if ! doc_commit=$(git log -n 1 --format=%H -- "$review_file"); then
+    echo "error: could not find finalized-doc commit for $review_file" >&2
+    exit 1
+  fi
+  if [ -z "$doc_commit" ]; then
+    echo "error: could not find finalized-doc commit for $review_file" >&2
+    exit 1
+  fi
+  git commit --fixup="$doc_commit"
   printf 'local review committed: %s\n' "$review_file"
 fi

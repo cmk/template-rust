@@ -202,9 +202,13 @@ gates plus a `gitleaks` history scan as defense-in-depth.
   `git add` and `git commit` calls, since chained `add && commit` sees
   an empty pre-add diff and slips through.
 - **No merge commits.** Always rebase onto main; history is linear.
-- **CI-repair commits are fixups.** `git commit --fixup=<sha>`, then
-  `scripts/git_squash.sh` before push. Review-round commits stay
-  standalone so the audit trail survives.
+- **Mechanical repair commits are fixups.** CI repairs, local-review
+  cleanups, and GitHub review rounds that do not change design use
+  `git commit --fixup=<sha>` against the implementation commit they
+  repair. Review-doc mirror changes use a separate fixup targeting
+  the finalized-doc commit. Design-changing feedback may stay as a
+  standalone `fix:` or `feat:` commit. Run
+  `scripts/git_autosquash_finalize.sh` before merge.
 
 ### Sprint workflow
 
@@ -219,7 +223,7 @@ obvious.
 ```
 main_clean → on_branch → plan_committed → impl_green → plan_finalized
   → local_reviewed → pushed → gh_review → items_pulled → round_unpushed
-  → gh_review → merged
+  → gh_review → autosquash_finalized → merged
 ```
 
 Workflow-sensitive actions go through repo scripts/commands:
@@ -229,6 +233,7 @@ Workflow-sensitive actions go through repo scripts/commands:
 - PR body: `scripts/pr_report.py path` / `body`.
 - GitHub review ingestion: `scripts/pr_report.py reviews`.
 - Replies: `/pr-reply` (wraps `scripts/pr_reply.py` + `pr_report.py reviews`).
+- Finalization: `scripts/git_autosquash_finalize.sh`.
 - Merge: `scripts/git_merge.sh`, **not** `gh pr merge`.
 
 When a `gh`-backed command errors (auth prompt, network, missing
@@ -263,10 +268,13 @@ A plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
 8. Run `/pr-review` (or `scripts/pr_review.sh`).
 9. Open the PR:
    `gh pr create --body-file <(scripts/pr_report.py body N)`.
-10. Rebase + land: `git fetch origin && git rebase origin/main`, then
+10. Before merge, run `scripts/git_autosquash_finalize.sh`. It
+    autosquashes fixup commits, reruns full gates, and force-pushes
+    the cleaned branch with lease.
+11. Rebase + land: `git fetch origin && git rebase origin/main`, then
     `git merge --ff-only`. (Worktree case: main is checked out in the
     *primary* worktree, so run the merge from there.)
-11. `git worktree remove ...` (if used), then `git branch -d ...`.
+12. `git worktree remove ...` (if used), then `git branch -d ...`.
 
 ### Code review
 
@@ -274,8 +282,9 @@ A plan at `doc/plans/plan-YYYY-MM-DD-NN.md` maps to branch
 
 Before pushing, run `/pr-review` (or `scripts/pr_review.sh`). It
 examines `git diff origin/main...HEAD`, appends a
-`## Local review (YYYY-MM-DD)` section, and aborts if the review file
-or `## Summary` is missing.
+`## Local review (YYYY-MM-DD)` section, commits that artifact as a
+fixup to the finalized-doc commit, and aborts if the review file or
+`## Summary` is missing.
 
 If another PR opens between TDD step 7 and your push, the predicted
 review number can drift — re-run `scripts/pr_report.py path` and `mv`
@@ -290,23 +299,29 @@ After GitHub review activity:
    `review-NNNNN.md` (idempotent via `<!-- gh-id: NNNNN -->` markers).
 2. Address findings as **uncommitted edits** in the working tree.
 3. `/pr-reply <N>` posts replies, mirrors them into the doc, and
-   makes ONE atomic commit (code + replies + doc).
+   creates one or two commits for the round:
+   code/test/product-doc mechanical fixes as `fixup! <implementation>`,
+   review-doc mirror changes as `fixup! <finalized-doc>`.
+   Design-changing feedback may be a standalone `fix:` or `feat:`
+   commit, still paired with a review-doc fixup when the mirror changed.
 4. `git push` once.
 
 **Do not pre-commit the fix** — `/pr-reply` expects to start from
-`gh_review` (local at-or-behind origin) and produce the round commit
-itself. **Do not merge from `round_unpushed`** — `gh pr merge` is
-GitHub-side and silently drops local commits. Use
-`scripts/git_merge.sh`, which refuses if the branch is ahead of origin.
-Recovery (if a merge already dropped a round commit): cherry-pick the
-stranded SHA into the next plan branch's first commit; don't open a
-tiny standalone PR.
+`gh_review` (local at-or-behind origin) and produce the round commits
+itself. **Do not merge from `round_unpushed` or before
+`autosquash_finalized`** — `gh pr merge` is GitHub-side and silently
+drops local commits, while unsquashed fixups should not reach main.
+Use `scripts/git_merge.sh`, which refuses if the branch is ahead of
+origin or the PR head still contains autosquashable commits. Recovery
+(if a merge already dropped a round commit): cherry-pick the stranded
+SHA into the next plan branch's first commit; don't open a tiny
+standalone PR.
 
 #### Automated poll loop (optional)
 
 `/loop 10m /pr-watch <N>` runs the round cycle on a timer. Each tick
 either heartbeats, auto-fixes trivially-clear items + runs the
-`/pr-reply` flow + pushes, or pauses on push failure. Auto-fix scope:
+`/pr-reply` flow + pushes the transient fixup round, or pauses on push failure. Auto-fix scope:
 one file, < 20 lines, no API removal, no cross-module reasoning —
 anything ambiguous is surfaced as **needs you**. The loop **never
 merges** — that's the user's manual gate. See `doc/workflow.md` →

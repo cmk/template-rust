@@ -2,19 +2,17 @@
 # git_merge.sh — guard `gh pr merge` against the `round_unpushed`
 # trap.
 #
-# `doc/workflow.md`'s state machine has no edge from `round_unpushed`
-# to `merged`. The only path is `round_unpushed → push → gh_review →
-# merged`. But `gh pr merge` is a GitHub-side operation; it doesn't
-# know about local state. Merging while a round commit sits unpushed
-# on the local branch silently drops it on the floor — the merge
-# takes the remote head, and the local commit stays orphaned in the
-# reflog.
+# `doc/workflow.md`'s state machine has no direct edge from
+# `round_unpushed` to `merged`, and no edge from an unfinalized PR head
+# to `merged`. Review fixups are allowed to reach GitHub during the
+# review loop, but they must be autosquashed before merge.
 #
 # This script is the local-side enforcement: it resolves the PR's head
 # branch (via `gh pr view`, *not* the currently-checked-out branch —
-# git_merge.sh 17 might be invoked from main), then refuses to invoke
-# `gh pr merge` if that PR's local branch is ahead of its remote
-# tracking ref. Re-run after `git push`.
+# git_merge.sh 17 might be invoked from main), refreshes the remote
+# head, then refuses to invoke `gh pr merge` if that PR's local branch
+# is ahead of its remote tracking ref or if the remote head still
+# contains autosquashable commits. Re-run after push/finalization.
 #
 # Usage:
 #   scripts/git_merge.sh [<gh-pr-merge-args...>]
@@ -33,8 +31,9 @@ if [ $# -eq 1 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
 usage: git_merge.sh [<gh-pr-merge-args...>]
 
 Resolves the PR's head branch via `gh pr view`, then refuses to run
-if that local branch is ahead of its remote tracking ref. All
-arguments are forwarded to `gh pr merge` once the guard passes.
+if that local branch is ahead of its remote tracking ref or if the PR
+head still contains autosquashable commits. All arguments are forwarded
+to `gh pr merge` once the guard passes.
 USAGE
   exit 0
 fi
@@ -113,10 +112,14 @@ else
 fi
 
 if [ ${#pr_selector[@]} -gt 0 ]; then
-  head_ref_cmd=(gh pr view "${pr_selector[@]}" "${repo_args[@]}" --json headRefName --jq .headRefName)
+  head_ref_cmd=(gh pr view "${pr_selector[@]}")
 else
-  head_ref_cmd=(gh pr view "${repo_args[@]}" --json headRefName --jq .headRefName)
+  head_ref_cmd=(gh pr view)
 fi
+if [ ${#repo_args[@]} -gt 0 ]; then
+  head_ref_cmd+=("${repo_args[@]}")
+fi
+head_ref_cmd+=(--json headRefName --jq .headRefName)
 
 head_ref_cmd_display=''
 for arg in "${head_ref_cmd[@]}"; do
@@ -137,16 +140,33 @@ if [ -z "$head_ref" ]; then
   exit 1
 fi
 
-# Refresh the remote tracking ref so the comparison isn't stale. A
-# silent failure here (offline, auth) is fine — the next check will
-# still compare against whatever's local, and the user will see if
-# something's wrong.
+# Refresh the refs that define the mergeable state. A silent PR-head
+# fetch failure (offline, auth) is fine — the next check still compares
+# against whatever is local. origin/main must be current for the
+# autosquash guard, so let that fetch fail loudly.
+git fetch --quiet origin main
 git fetch --quiet origin "$head_ref" || true
 
 upstream="origin/$head_ref"
 if ! git rev-parse --verify --quiet "$upstream" >/dev/null; then
   echo "git_merge.sh: no remote tracking ref '$upstream'." >&2
   echo "  push the branch first, then re-run." >&2
+  exit 1
+fi
+
+autosquashable=$(git log --format=%s "origin/main..$upstream" \
+  | grep -E '^(fixup!|amend!|squash!)' || true)
+if [ -n "$autosquashable" ]; then
+  cat >&2 <<EOF
+git_merge.sh: REFUSING TO MERGE — PR head $upstream still contains autosquashable commits.
+
+$autosquashable
+
+Finalize the branch before merging:
+
+    scripts/git_autosquash_finalize.sh
+
+EOF
   exit 1
 fi
 

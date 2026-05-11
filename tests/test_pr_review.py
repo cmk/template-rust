@@ -18,7 +18,7 @@ def git(repo: Path, *args: str) -> None:
 
 
 class PrReviewTests(unittest.TestCase):
-    def test_local_review_appends_and_commits_review_artifact(self) -> None:
+    def test_local_review_commits_review_artifact_as_doc_fixup(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             remote = root / "origin.git"
@@ -75,6 +75,9 @@ class PrReviewTests(unittest.TestCase):
             (repo / "README.md").write_text("branch\n", encoding="utf-8")
             git(repo, "add", "README.md", "doc/reviews/review-00001.md")
             git(repo, "commit", "-m", "doc: Finalize plan and PR description")
+            doc_sha = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+            ).strip()
 
             env = os.environ.copy()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
@@ -87,8 +90,12 @@ class PrReviewTests(unittest.TestCase):
             ).strip()
             status = subprocess.check_output(["git", "status", "--porcelain"], cwd=repo, text=True)
 
-            self.assertEqual(subject, "doc: Append local review")
+            self.assertEqual(subject, "fixup! doc: Finalize plan and PR description")
             self.assertEqual(status, "")
+            target = subprocess.check_output(
+                ["git", "rev-parse", "HEAD^"], cwd=repo, text=True
+            ).strip()
+            self.assertEqual(target, doc_sha)
             review_text = review_file.read_text(encoding="utf-8")
             self.assertIn("## Local review", review_text)
             self.assertIn("No findings in scripts/pr_review.sh.", review_text)
