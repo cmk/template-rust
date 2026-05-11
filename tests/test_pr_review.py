@@ -101,6 +101,20 @@ class PrReviewTests(unittest.TestCase):
             self.assertIn("No findings in scripts/pr_review.sh.", review_text)
             self.assertNotIn(str(repo), review_text)
 
+            subprocess.run([str(script)], cwd=repo, env=env, check=True, capture_output=True, text=True)
+            subjects = subprocess.check_output(
+                ["git", "log", "--format=%s", "-2"],
+                cwd=repo,
+                text=True,
+            ).splitlines()
+            self.assertEqual(
+                subjects,
+                [
+                    "fixup! doc: Finalize plan and PR description",
+                    "fixup! doc: Finalize plan and PR description",
+                ],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

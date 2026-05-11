@@ -123,7 +123,7 @@ git add -- "$review_file"
 if git diff --cached --quiet; then
   printf 'local review appended with no staged delta: %s\n' "$review_file"
 else
-  if ! doc_commit=$(git log -n 1 --format=%H -- "$review_file"); then
+  if ! doc_commit=$(git log -n 1 --follow --diff-filter=A --format=%H -- "$review_file"); then
     echo "error: could not find finalized-doc commit for $review_file" >&2
     exit 1
   fi
